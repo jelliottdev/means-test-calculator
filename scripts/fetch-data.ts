@@ -341,11 +341,50 @@ async function fetchHousingStandards(
       continue;
     }
 
-    // Parse housing table rows
-    // Columns vary by state but typical: County | 1-2 persons | 3 persons | 4 persons | 5+ persons | Utilities
-    // We need both mortgage/rent AND utility components
-    // Some pages have separate tables for each; others combine them.
+    // Parse housing table using header-aware column detection.
+    // DOJ housing charts have a header row identifying column types:
+    //   e.g. "County | Non-Mortgage Expenses | Mortgage/Rental Expenses"
+    //   or   "County | Housing and Utilities | Non-Mortgage"
+    // We locate the header, identify the utility and mortgage column indices, then
+    // extract values from data rows using those indices.
     const rows = tableRows(html);
+
+    // Step 1: Find header row and identify column indices
+    let utilityColIdx = -1;
+    let mortgageColIdx = -1;
+
+    for (const row of rows) {
+      const cells = parseRow(row);
+      if (cells.length < 2) continue;
+      const joined = cells.join(" ").toLowerCase();
+
+      // Only look at rows that look like headers
+      if (!(/county|area|jurisdiction|state/i.test(cells[0]))) continue;
+
+      for (let i = 0; i < cells.length; i++) {
+        const c = cells[i].toLowerCase();
+        if (/non.?mortgage|util|maintenance/i.test(c) && utilityColIdx < 0) {
+          utilityColIdx = i;
+        }
+        if (/mortgage|rental|rent/i.test(c) && !(/non.?mortgage/i.test(c)) && mortgageColIdx < 0) {
+          mortgageColIdx = i;
+        }
+      }
+      if (utilityColIdx >= 0 || mortgageColIdx >= 0) break;
+
+      // Fallback: if header identified but columns not by name, use positional heuristic:
+      // last column = utility, second column = mortgage
+      if (joined.includes("county") && cells.length >= 3) {
+        mortgageColIdx = 1;
+        utilityColIdx = cells.length - 1;
+      }
+    }
+
+    // If header detection completely failed, fall back to positional
+    if (utilityColIdx < 0) utilityColIdx = -1; // will use last column
+    if (mortgageColIdx < 0) mortgageColIdx = 1;
+
+    // Step 2: Extract values from data rows
     let stateUtility = 0;
     let stateMortgage = 0;
     let stateCount = 0;
@@ -354,39 +393,31 @@ async function fetchHousingStandards(
       const cells = parseRow(row);
       if (cells.length < 3) continue;
 
-      // Skip header rows
-      if (/county|state|area|jurisdiction/i.test(cells[0])) continue;
+      // Skip rows that look like headers
+      if (/county|area|jurisdiction|non.?mortgage|mortgage|util/i.test(cells[0])) continue;
 
-      // Try to identify utility vs. mortgage columns
-      // DOJ housing charts typically have: County, Non-Mortgage (utility), Mortgage
-      // or combined: County, 1-2p, 3p, 4p, 5+p (with separate utility section)
-      if (cells.length >= 3) {
-        const utility = parseDollar(cells[cells.length - 1]); // last column often utilities
-        const mortgage = parseDollar(cells[1]); // second column often mortgage/rent
+      const utilityVal = parseDollar(cells[utilityColIdx >= 0 ? utilityColIdx : cells.length - 1]);
+      const mortgageVal = parseDollar(cells[mortgageColIdx]);
 
-        if (utility > 100 && utility < 2000 && mortgage > 200 && mortgage < 5000) {
-          stateUtility += utility;
-          stateMortgage += mortgage;
-          stateCount++;
-        }
+      // Tighter validation bounds: utility $200–$1500/mo, mortgage $400–$4000/mo
+      if (utilityVal >= 200 && utilityVal <= 1500 && mortgageVal >= 400 && mortgageVal <= 4000) {
+        stateUtility += utilityVal;
+        stateMortgage += mortgageVal;
+        stateCount++;
       }
     }
 
     if (stateCount > 0) {
       const avgUtility = Math.round(stateUtility / stateCount);
       const avgMortgage = Math.round(stateMortgage / stateCount);
-
-      // Build household-size scaled values
-      const u1 = avgUtility;
-      const m1 = avgMortgage;
       results[state] = {
-        utility: [u1, Math.round(u1*1.17), Math.round(u1*1.31), Math.round(u1*1.44), Math.round(u1*1.56)],
-        mortgage: [m1, Math.round(m1*1.17), Math.round(m1*1.31), Math.round(m1*1.44), Math.round(m1*1.56)],
+        utility:  [avgUtility,  Math.round(avgUtility*1.17),  Math.round(avgUtility*1.31),  Math.round(avgUtility*1.44),  Math.round(avgUtility*1.56)],
+        mortgage: [avgMortgage, Math.round(avgMortgage*1.17), Math.round(avgMortgage*1.31), Math.round(avgMortgage*1.44), Math.round(avgMortgage*1.56)],
       };
       fetched++;
-      log(`  ${state}: utility=$${avgUtility}/mo, mortgage cap=$${avgMortgage}/mo (avg of ${stateCount} areas)`);
+      log(`  ${state}: utility=$${avgUtility}/mo, mortgage cap=$${avgMortgage}/mo (avg of ${stateCount} county areas)`);
     } else {
-      warn(`  ${state}: could not parse housing table`);
+      warn(`  ${state}: table found but no valid rows parsed — using embedded defaults`);
       failed++;
     }
   }

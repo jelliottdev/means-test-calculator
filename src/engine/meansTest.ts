@@ -60,6 +60,12 @@ export interface MeansTestInput {
   monthlyHealthInsurance: number;    // premiums paid, not reimbursed
   // Line 25b
   monthlyChildcare: number;
+  // Line 21 — additional healthcare (above national standard)
+  monthlyChronicHealthcare: number;  // ongoing treatment for chronically ill or disabled household member
+  // Line 25c — dependent children K-12 education
+  monthlyDependentChildEducation: number; // legally required school tuition/fees for children under 18
+  // Line 25d — special diet / medical food
+  monthlySpecialDietFood: number;    // additional food costs above Line 6 standard for medical reasons
   // Line 25e
   monthlySupportObligations: number; // domestic support paid by court order
   // Lines 24–26 — priority claims
@@ -274,6 +280,17 @@ export function runMeansTest(input: MeansTestInput): MeansTestResult {
     deductions.push({ label: "Childcare", amount: input.monthlyChildcare, source: "actual", formLine: "20" });
   }
 
+  // Line 21: Additional healthcare for chronically ill or disabled household member
+  if (input.monthlyChronicHealthcare > 0) {
+    deductions.push({
+      label: "Additional Healthcare (Chronically Ill/Disabled, above National Standard)",
+      amount: input.monthlyChronicHealthcare,
+      source: "actual",
+      formLine: "21",
+      note: "Ongoing treatment costs above IRS out-of-pocket standard on Line 7",
+    });
+  }
+
   // Line 22: Telecommunications (capped at IRS allowance)
   if (input.monthlyTelecom > 0) {
     const telecomDeduction = Math.min(TELECOM_ALLOWANCE, input.monthlyTelecom);
@@ -291,6 +308,28 @@ export function runMeansTest(input: MeansTestInput): MeansTestResult {
   // Line 25a: Health insurance premiums
   if (input.monthlyHealthInsurance > 0) {
     deductions.push({ label: "Health Insurance Premiums", amount: input.monthlyHealthInsurance, source: "actual", formLine: "25a" });
+  }
+
+  // Line 25c: Education expenses for dependent children (K-12)
+  if (input.monthlyDependentChildEducation > 0) {
+    deductions.push({
+      label: "Dependent Children's Education (K-12, Legally Required)",
+      amount: input.monthlyDependentChildEducation,
+      source: "actual",
+      formLine: "25c",
+      note: "Tuition/fees for children under 18 attending private/charter school where legally required",
+    });
+  }
+
+  // Line 25d: Additional food/clothing for special medical/dietary needs
+  if (input.monthlySpecialDietFood > 0) {
+    deductions.push({
+      label: "Special Diet / Medical Food (Above National Standard)",
+      amount: input.monthlySpecialDietFood,
+      source: "actual",
+      formLine: "25d",
+      note: "Additional food costs above Line 6 standard due to disability, chronic illness, or medically required diet",
+    });
   }
 
   // Line 25e: Court-ordered domestic support obligations

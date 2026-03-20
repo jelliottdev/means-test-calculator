@@ -41,6 +41,9 @@ const DEFAULT_INPUT: MeansTestInput = {
   monthlyTelecom: 0,
   monthlyHealthInsurance: 0,
   monthlyChildcare: 0,
+  monthlyChronicHealthcare: 0,
+  monthlyDependentChildEducation: 0,
+  monthlySpecialDietFood: 0,
   monthlySupportObligations: 0,
   monthlyPriorityDebts: 0,
   monthlyOtherSecuredDebt: 0,
@@ -710,6 +713,39 @@ export default function App() {
                 </Field>
                 <Field label="Childcare" note="Actual monthly childcare costs (Line 20)">
                   <NumInput value={input.monthlyChildcare} onChange={v => set("monthlyChildcare", v)} />
+                </Field>
+              </div>
+
+              <h4 style={{ fontFamily: "var(--mono)", fontSize: "0.72rem", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--ink-3)", margin: "0.75rem 0 0.25rem" }}>
+                Special Circumstances (Lines 21, 25c, 25d)
+              </h4>
+              <div className="grid-2">
+                <Field
+                  label="Additional Healthcare — Chronic Illness / Disability"
+                  note="Ongoing treatment costs above the IRS national standard (Line 21)"
+                >
+                  <NumInput
+                    value={input.monthlyChronicHealthcare}
+                    onChange={v => set("monthlyChronicHealthcare", v)}
+                  />
+                </Field>
+                <Field
+                  label="Dependent Children's Education (K-12)"
+                  note="Legally required tuition/fees for children under 18 (Line 25c)"
+                >
+                  <NumInput
+                    value={input.monthlyDependentChildEducation}
+                    onChange={v => set("monthlyDependentChildEducation", v)}
+                  />
+                </Field>
+                <Field
+                  label="Special Diet / Medical Food"
+                  note="Additional food costs above national standard for disability or chronic illness (Line 25d)"
+                >
+                  <NumInput
+                    value={input.monthlySpecialDietFood}
+                    onChange={v => set("monthlySpecialDietFood", v)}
+                  />
                 </Field>
               </div>
 
