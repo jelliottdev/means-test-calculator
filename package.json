@@ -5,9 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -p tsconfig.app.json && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "update-data": "npx tsx scripts/fetch-data.ts",
+    "check-data": "npx tsx scripts/fetch-data.ts --check"
   },
   "dependencies": {
     "react": "^19.2.4",
