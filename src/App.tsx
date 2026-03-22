@@ -1,6 +1,11 @@
 import { useState, useEffect, useCallback } from "react";
-import { STATE_NAMES, EFFECTIVE_DATE, PERIOD_LABEL, getHousingAllowance } from "./data/meansTestData";
-import { runMeansTest, type MeansTestInput, type MeansTestResult } from "./engine/meansTest";
+import { STATE_NAMES, EFFECTIVE_DATE, getHousingAllowanceDetails } from "./data/meansTestData";
+import { EMBEDDED_MIN_SUPPORTED_FILING_DATE, getEmbeddedDatasetSupport } from "./datasets/embedded";
+import { buildAuditPacket, downloadAuditPacket, getAuditReviewStatus, getReviewerSignoffReasons, isReviewerSignoffRequired, normalizeAuditReview } from "./auditPacket";
+import { type MeansTestInput } from "./engine/meansTest";
+import { normalizeLegacyInput } from "./engine/v2/normalize";
+import { runMeansTestV2 } from "./engine/v2/meansTestV2";
+import type { DatasetVersionMeta, MeansTestResultV2 } from "./engine/v2/types";
 import "./index.css";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -18,11 +23,13 @@ const INCOME_TYPES = [
 ];
 
 const SESSION_KEY = "meanstest_v2";
+const MIN_SUPPORTED_FILING_DATE = EMBEDDED_MIN_SUPPORTED_FILING_DATE;
+
 
 // ── Default State ─────────────────────────────────────────────────────────────
 
 const DEFAULT_INPUT: MeansTestInput = {
-  filingDate: new Date().toISOString().split("T")[0],
+  filingDate: MIN_SUPPORTED_FILING_DATE,
   state: "",
   county: "",
   householdSize: 1,
@@ -33,6 +40,8 @@ const DEFAULT_INPUT: MeansTestInput = {
   numVehicles: 1,
   hasCarPayment: false,
   monthlyCarPayment: 0,
+  hasSecondCarPayment: false,
+  monthlySecondCarPayment: 0,
   monthlyMortgageRent: 0,
   monthlyTaxes: 0,
   monthlyInvoluntaryDeductions: 0,
@@ -132,6 +141,123 @@ function StatCard({
   );
 }
 
+function AuditPanel({
+  result,
+}: {
+  result: MeansTestResultV2;
+}) {
+  const datasetEntries = Object.entries(result.audit.datasets) as Array<[string, DatasetVersionMeta]>;
+
+  return (
+    <div className="audit-panel">
+      <div className="audit-section">
+        <h4 className="audit-title">Dataset Provenance</h4>
+        <div className="audit-grid">
+          {datasetEntries.map(([key, meta]) => (
+            <div key={key} className="audit-card">
+              <div className="audit-card-label">{key.replaceAll("_", " ")}</div>
+              <div className="audit-card-date">{meta.effectiveDate}</div>
+              <div className="audit-card-sub">{meta.periodLabel}</div>
+              <div className="audit-card-sub"><a href={meta.sourceUrl} target="_blank" rel="noreferrer">Official source</a></div>
+              {meta.sourceHash && <div className="audit-card-sub">Snapshot: <code>{meta.sourceHash.slice(0, 28)}…</code></div>}
+              {meta.notes?.map((note, idx) => <div key={idx} className="audit-card-sub">Note: {note}</div>)}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {result.audit.warnings.length > 0 && (
+        <div className="audit-section">
+          <h4 className="audit-title">Warnings</h4>
+          <ul className="audit-list audit-list-warn">
+            {result.audit.warnings.map((warning, idx) => (
+              <li key={idx}>{warning}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {result.audit.assumptions.length > 0 && (
+        <div className="audit-section">
+          <h4 className="audit-title">Assumptions Used</h4>
+          <ul className="audit-list audit-list-note">
+            {result.audit.assumptions.map((assumption, idx) => (
+              <li key={idx}>{assumption}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+function ReviewerSignoffSection({
+  reviewerName,
+  reviewerNotes,
+  reasons,
+  required,
+  reviewBlockers,
+  readyForExport,
+  onReviewerNameChange,
+  onReviewerNotesChange,
+}: {
+  reviewerName: string;
+  reviewerNotes: string;
+  reasons?: string[];
+  required?: boolean;
+  reviewBlockers?: string[];
+  readyForExport?: boolean;
+  onReviewerNameChange: (value: string) => void;
+  onReviewerNotesChange: (value: string) => void;
+}) {
+  return (
+    <div className="section">
+      <h3 className="section-title">Reviewer Signoff {required ? "(required for export)" : "(optional)"}</h3>
+      <div className="section-body">
+        {required && (
+          <>
+            <p className="section-note">Reviewer signoff is required before exporting this result.</p>
+            <ul className="audit-list audit-list-note">
+              {(reasons ?? []).map((reason, idx) => <li key={idx}>{reason}</li>)}
+            </ul>
+            {readyForExport ? (
+              <p className="section-note">Export status: ready. Required reviewer fields are complete.</p>
+            ) : (
+              <>
+                <p className="section-note">Export status: blocked until required review fields are completed.</p>
+                <ul className="audit-list audit-list-warn">
+                  {(reviewBlockers ?? []).map((blocker, idx) => <li key={idx}>{blocker}</li>)}
+                </ul>
+              </>
+            )}
+          </>
+        )}
+        <div className="grid-2">
+          <Field label="Reviewer Name">
+            <input
+              type="text"
+              className="text-input"
+              value={reviewerName}
+              onChange={e => onReviewerNameChange(e.target.value)}
+              placeholder="Attorney / paralegal name"
+            />
+          </Field>
+          <Field label="Reviewer Notes" note="Included in the exported audit packet">
+            <input
+              type="text"
+              className="text-input"
+              value={reviewerNotes}
+              onChange={e => onReviewerNotesChange(e.target.value)}
+              placeholder="Review notes, exceptions, or follow-up items"
+            />
+          </Field>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Result View ───────────────────────────────────────────────────────────────
 
 function ResultView({
@@ -139,11 +265,31 @@ function ResultView({
   input,
   onReset,
 }: {
-  result: MeansTestResult;
+  result: MeansTestResultV2;
   input: MeansTestInput;
   onReset: () => void;
 }) {
   const stateName = STATE_NAMES[input.state] ?? input.state;
+  const [reviewerName, setReviewerName] = useState("");
+  const [reviewerNotes, setReviewerNotes] = useState("");
+  const reviewerRequiredForExport = isReviewerSignoffRequired(result);
+  const reviewerSignoffReasons = getReviewerSignoffReasons(result);
+  const reviewDraft = normalizeAuditReview(reviewerName || reviewerNotes ? { reviewerName, reviewerNotes } : undefined);
+  const reviewStatus = getAuditReviewStatus(result, reviewDraft);
+  const exportAuditPacket = () => {
+    const reviewedAt = new Date().toISOString();
+    downloadAuditPacket(buildAuditPacket(
+      input,
+      result,
+      reviewedAt,
+      reviewDraft
+        ? {
+            ...reviewDraft,
+            reviewedAt,
+          }
+        : undefined,
+    ));
+  };
 
   if (result.outcome === "EXEMPT") {
     return (
@@ -156,8 +302,20 @@ function ResultView({
           </div>
         </div>
         <p className="exempt-reason">{result.reason}</p>
+        <ReviewerSignoffSection
+          reviewerName={reviewerName}
+          reviewerNotes={reviewerNotes}
+          reasons={reviewerSignoffReasons}
+          reviewBlockers={reviewStatus.blockers}
+          readyForExport={reviewStatus.readyForExport}
+          onReviewerNameChange={setReviewerName}
+          required={reviewerRequiredForExport}
+          onReviewerNotesChange={setReviewerNotes}
+        />
+        <AuditPanel result={result} />
         <div className="result-actions">
           <button className="reset-btn" onClick={onReset}>← New Calculation</button>
+          <button className="print-btn" onClick={exportAuditPacket} disabled={!reviewStatus.readyForExport} title={!reviewStatus.readyForExport ? reviewStatus.blockers.join(" ") : undefined}>Export Audit JSON</button>
           <button className="print-btn" onClick={() => window.print()}>Print / PDF</button>
         </div>
       </div>
@@ -197,15 +355,28 @@ function ResultView({
           applicable state median ({fmt(result.stateMedian)}) — automatic pass under 11 U.S.C. §
           707(b)(7). Form 122A-2 not required.
         </div>
+
+        <ReviewerSignoffSection
+          reviewerName={reviewerName}
+          reviewerNotes={reviewerNotes}
+          reasons={reviewerSignoffReasons}
+          reviewBlockers={reviewStatus.blockers}
+          readyForExport={reviewStatus.readyForExport}
+          onReviewerNameChange={setReviewerName}
+          required={reviewerRequiredForExport}
+          onReviewerNotesChange={setReviewerNotes}
+        />
+        <AuditPanel result={result} />
         <div className="result-actions">
           <button className="reset-btn" onClick={onReset}>← New Calculation</button>
+          <button className="print-btn" onClick={exportAuditPacket} disabled={!reviewStatus.readyForExport} title={!reviewStatus.readyForExport ? reviewStatus.blockers.join(" ") : undefined}>Export Audit JSON</button>
           <button className="print-btn" onClick={() => window.print()}>Print / PDF</button>
         </div>
       </div>
     );
   }
 
-  const r = result as Extract<MeansTestResult, { outcome: "PASS" | "FAIL" | "BORDERLINE" }>;
+  const r = result as Extract<MeansTestResultV2, { outcome: "PASS" | "FAIL" | "BORDERLINE" }>;
   const verdictClass =
     r.outcome === "PASS" ? "verdict-pass" : r.outcome === "FAIL" ? "verdict-fail" : "verdict-border";
   const verdictLabel =
@@ -264,7 +435,7 @@ function ResultView({
             </tr>
           </thead>
           <tbody>
-            {r.deductions.map((d, i) => (
+            {r.deductions.map((d: (typeof r.deductions)[number], i: number) => (
               <tr key={i}>
                 <td>
                   {d.label}
@@ -316,13 +487,28 @@ function ResultView({
       </div>
 
       <div className="result-note">
-        <strong>Data effective:</strong> {PERIOD_LABEL}. Housing allowances are IRS Local Standards
-        (state average; MSA-specific where applicable). Run{" "}
-        <code>npm run update-data</code> to refresh from DOJ/UST.
+        <strong>Data effective:</strong> housing / median / thresholds {EFFECTIVE_DATE}; transportation 2026-04-01. This UI is only suitable for cases filed on or
+        after {MIN_SUPPORTED_FILING_DATE}. County omissions and zeroed actual-expense entries can change
+        the legal result, so review the audit warnings and assumptions before relying on the output.
       </div>
+
+      
+        <ReviewerSignoffSection
+          reviewerName={reviewerName}
+          reviewerNotes={reviewerNotes}
+          reasons={reviewerSignoffReasons}
+          reviewBlockers={reviewStatus.blockers}
+          readyForExport={reviewStatus.readyForExport}
+          onReviewerNameChange={setReviewerName}
+          required={reviewerRequiredForExport}
+          onReviewerNotesChange={setReviewerNotes}
+        />
+
+      <AuditPanel result={result} />
 
       <div className="result-actions">
         <button className="reset-btn" onClick={onReset}>← New Calculation</button>
+        <button className="print-btn" onClick={exportAuditPacket} disabled={!reviewStatus.readyForExport} title={!reviewStatus.readyForExport ? reviewStatus.blockers.join(" ") : undefined}>Export Audit JSON</button>
         <button className="print-btn" onClick={() => window.print()}>Print / PDF</button>
       </div>
     </div>
@@ -343,8 +529,10 @@ export default function App() {
     return DEFAULT_INPUT;
   });
 
-  const [result, setResult] = useState<MeansTestResult | null>(null);
+  const [result, setResult] = useState<MeansTestResultV2 | null>(null);
   const [errors, setErrors] = useState<Partial<Record<string, string>>>({});
+  const [reviewAcknowledged, setReviewAcknowledged] = useState(false);
+  const filingDateSupport = getEmbeddedDatasetSupport(input.filingDate);
 
   // Persist to session storage whenever input changes
   useEffect(() => {
@@ -357,6 +545,9 @@ export default function App() {
 
   const set = useCallback(<K extends keyof MeansTestInput>(key: K, val: MeansTestInput[K]) => {
     setInput(prev => ({ ...prev, [key]: val }));
+    if (key === "state" || key === "county" || key === "householdSize") {
+      setReviewAcknowledged(false);
+    }
     setErrors(prev => ({ ...prev, [key]: undefined }));
   }, []);
 
@@ -375,9 +566,16 @@ export default function App() {
   const validate = (): boolean => {
     const errs: Partial<Record<string, string>> = {};
     if (!input.state) errs.state = "State is required";
+    if (!input.filingDate) errs.filingDate = "Filing date is required";
+    if (!filingDateSupport.supported) {
+      errs.filingDate = filingDateSupport.reason ?? `This build only supports cases filed on or after ${MIN_SUPPORTED_FILING_DATE}`;
+    }
     if (input.householdSize < 1) errs.householdSize = "Must be at least 1";
     if (input.totalUnsecuredDebt < 0) errs.totalUnsecuredDebt = "Cannot be negative";
     if (input.monthlyMortgageRent < 0) errs.monthlyMortgageRent = "Cannot be negative";
+    if (housingPreview && housingPreview.matched !== "county_exact" && !reviewAcknowledged) {
+      errs.reviewAcknowledged = "Review acknowledgment is required when housing is not using an exact county row";
+    }
     if (Object.keys(errs).length > 0) {
       setErrors(errs);
       return false;
@@ -388,7 +586,7 @@ export default function App() {
   const calculate = () => {
     if (!validate()) return;
     try {
-      setResult(runMeansTest(input));
+      setResult(runMeansTestV2(normalizeLegacyInput(input)));
     } catch (e) {
       setErrors({ state: (e as Error).message });
     }
@@ -398,6 +596,7 @@ export default function App() {
     setInput(DEFAULT_INPUT);
     setResult(null);
     setErrors({});
+    setReviewAcknowledged(false);
     sessionStorage.removeItem(SESSION_KEY);
   };
 
@@ -406,7 +605,7 @@ export default function App() {
   // Housing allowance preview (shows as user fills in state/county/household)
   const housingPreview =
     input.state
-      ? getHousingAllowance(input.state, input.county, input.householdSize)
+      ? getHousingAllowanceDetails(input.state, input.county, input.householdSize)
       : null;
 
   return (
@@ -436,10 +635,10 @@ export default function App() {
             {/* ── Case Information ─────────────────────────────────────── */}
             <Section title="Case Information">
               <div className="grid-2">
-                <Field label="Filing Date">
+                <Field label="Filing Date" error={errors.filingDate}>
                   <input
                     type="date"
-                    className="text-input"
+                    className={`text-input${errors.filingDate ? " error" : ""}`}
                     value={input.filingDate}
                     onChange={e => set("filingDate", e.target.value)}
                   />
@@ -482,6 +681,12 @@ export default function App() {
               </div>
 
               {/* Housing standard preview */}
+
+              {!filingDateSupport.supported && (
+                <div className="housing-hint-warning">
+                  Unsupported filing date: {filingDateSupport.reason}
+                </div>
+              )}
               {housingPreview && (
                 <div className="housing-hint">
                   <div>
@@ -495,8 +700,45 @@ export default function App() {
                         {fmt(housingPreview.utility + housingPreview.mortgageCap)}/mo total cap
                       </span>
                     </div>
+                    <div className="housing-hint-meta">
+                      Housing source:{" "}
+                      <strong>
+                        {housingPreview.matched === "county_exact"
+                          ? `Exact county row (${housingPreview.matchedName})`
+                          : housingPreview.matched === "msa"
+                          ? `Grouped ${housingPreview.matchedName} override`
+                          : housingPreview.matched === "state_default"
+                          ? "Statewide default"
+                          : "Emergency fallback"}
+                      </strong>
+                    </div>
+                    {housingPreview.matched !== "county_exact" && (
+                      <div className="housing-hint-warning">
+                        Review required: this preview is not using an exact county row from the U.S. Trustee chart.
+                      </div>
+                    )}
                   </div>
                 </div>
+              )}
+
+              {housingPreview && housingPreview.matched !== "county_exact" && (
+                <Field
+                  label="Reviewer acknowledgment"
+                  error={errors.reviewAcknowledged}
+                  note="Required whenever housing uses grouped MSA, statewide default, or fallback data"
+                >
+                  <label className="check-label">
+                    <input
+                      type="checkbox"
+                      checked={reviewAcknowledged}
+                      onChange={e => {
+                        setReviewAcknowledged(e.target.checked);
+                        setErrors(prev => ({ ...prev, reviewAcknowledged: undefined }));
+                      }}
+                    />
+                    I understand this housing amount must be verified against the current official county chart before relying on the result.
+                  </label>
+                </Field>
               )}
 
               <div className="checkbox-row">
@@ -622,11 +864,31 @@ export default function App() {
                     </select>
                   </Field>
                 )}
+                {input.numVehicles > 1 && (
+                  <Field label="Second Vehicle Loan / Lease">
+                    <select
+                      className="text-input"
+                      value={input.hasSecondCarPayment ? "yes" : "no"}
+                      onChange={e => set("hasSecondCarPayment", e.target.value === "yes")}
+                    >
+                      <option value="no">No second vehicle loan or lease</option>
+                      <option value="yes">Has second vehicle loan or lease</option>
+                    </select>
+                  </Field>
+                )}
                 {input.numVehicles > 0 && input.hasCarPayment && (
-                  <Field label="Monthly Car Payment" note="Actual loan or lease amount">
+                  <Field label="Monthly Car Payment — Vehicle 1" note="Used as the line 13b average monthly debt payment for Vehicle 1">
                     <NumInput
                       value={input.monthlyCarPayment}
                       onChange={v => set("monthlyCarPayment", v)}
+                    />
+                  </Field>
+                )}
+                {input.numVehicles > 1 && input.hasSecondCarPayment && (
+                  <Field label="Monthly Car Payment — Vehicle 2" note="Used as the line 13e average monthly debt payment for Vehicle 2">
+                    <NumInput
+                      value={input.monthlySecondCarPayment ?? 0}
+                      onChange={v => set("monthlySecondCarPayment", v)}
                     />
                   </Field>
                 )}
@@ -675,7 +937,7 @@ export default function App() {
               </div>
 
               <h4 style={{ fontFamily: "var(--mono)", fontSize: "0.72rem", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--ink-3)", margin: "0.75rem 0 0.25rem" }}>
-                Insurance &amp; Benefits (Lines 18–22, 25a)
+                Insurance &amp; Benefits (Lines 18, 22–23, 25a)
               </h4>
               <div className="grid-2">
                 <Field label="Term Life Insurance Premiums" note="For debtor's dependents only (Line 18)">
@@ -691,38 +953,47 @@ export default function App() {
                   />
                 </Field>
                 <Field
-                  label="Telecommunications"
-                  note="Phone, internet, fax — capped at $195/mo IRS standard (Line 22)"
+                  label="Optional Telephones and Telephone Services"
+                  note="Only optional services; do not include basic home phone, internet, or basic cell service (Line 23)"
                 >
                   <NumInput value={input.monthlyTelecom} onChange={v => set("monthlyTelecom", v)} />
                 </Field>
               </div>
 
               <h4 style={{ fontFamily: "var(--mono)", fontSize: "0.72rem", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--ink-3)", margin: "0.75rem 0 0.25rem" }}>
-                Education &amp; Care (Lines 19–20, 25b)
+                Court Orders, Education &amp; Care (Lines 19–21)
               </h4>
               <div className="grid-2">
                 <Field
-                  label="Employment Education"
-                  note="Tuition/fees legally required for current job (Line 19)"
+                  label="Court-Ordered Payments"
+                  note="Current monthly payments required by a court or administrative order (Line 19)"
                 >
                   <NumInput
-                    value={input.monthlyEducationEmployment}
-                    onChange={v => set("monthlyEducationEmployment", v)}
+                    value={input.monthlySupportObligations}
+                    onChange={v => set("monthlySupportObligations", v)}
                   />
                 </Field>
-                <Field label="Childcare" note="Actual monthly childcare costs (Line 20)">
-                  <NumInput value={input.monthlyChildcare} onChange={v => set("monthlyChildcare", v)} />
+                <Field label="Education" note="Only education allowed by Official Form 122A-2 line 20">
+                  <NumInput value={input.monthlyEducationEmployment} onChange={v => set("monthlyEducationEmployment", v)} />
                 </Field>
               </div>
 
               <h4 style={{ fontFamily: "var(--mono)", fontSize: "0.72rem", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--ink-3)", margin: "0.75rem 0 0.25rem" }}>
-                Special Circumstances (Lines 21, 25c, 25d)
+                Childcare & Special Circumstances (Lines 21–22, 25c, 25d)
               </h4>
               <div className="grid-2">
                 <Field
-                  label="Additional Healthcare — Chronic Illness / Disability"
-                  note="Ongoing treatment costs above the IRS national standard (Line 21)"
+                  label="Childcare"
+                  note="Actual monthly childcare costs (Line 21)"
+                >
+                  <NumInput
+                    value={input.monthlyChildcare}
+                    onChange={v => set("monthlyChildcare", v)}
+                  />
+                </Field>
+                <Field
+                  label="Additional Healthcare — Excluding Insurance Costs"
+                  note="Only the amount above the IRS out-of-pocket standard on line 7 (Line 22)"
                 >
                   <NumInput
                     value={input.monthlyChronicHealthcare}
@@ -750,18 +1021,9 @@ export default function App() {
               </div>
 
               <h4 style={{ fontFamily: "var(--mono)", fontSize: "0.72rem", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--ink-3)", margin: "0.75rem 0 0.25rem" }}>
-                Court Orders &amp; Priority Debts (Lines 24–26, 25e)
+                Priority Debts (Lines 24–26)
               </h4>
               <div className="grid-2">
-                <Field
-                  label="Domestic Support Obligations"
-                  note="Court-ordered support paid (Line 25e)"
-                >
-                  <NumInput
-                    value={input.monthlySupportObligations}
-                    onChange={v => set("monthlySupportObligations", v)}
-                  />
-                </Field>
                 <Field
                   label="Priority Debt Payments"
                   note="Back taxes, support arrears (Lines 24–26) — also triggers 10% Ch.13 admin deduction"
@@ -808,7 +1070,7 @@ export default function App() {
 
             <div className="form-footer">
               <span className="form-footer-note">
-                Data effective: {PERIOD_LABEL}
+                Housing / median / thresholds effective: {EFFECTIVE_DATE} · Transportation effective: 2026-04-01 · Supported filing dates: {MIN_SUPPORTED_FILING_DATE} and later
               </span>
               <button type="submit" className="calc-btn" disabled={!input.state}>
                 Run Means Test →
@@ -819,8 +1081,14 @@ export default function App() {
       </main>
 
       <footer className="footer">
-        <p>For informational purposes only · Not legal advice · Verify results with a licensed bankruptcy attorney</p>
-        <p>Data source: United States Trustee Program · justice.gov/ust/means-testing · Effective {EFFECTIVE_DATE}</p>
+        <p>
+          Bankruptcy means-test outcomes are legally sensitive. This app now surfaces dataset provenance,
+          warnings, and assumptions, but it is still not a substitute for attorney review.
+        </p>
+        <p>
+          Supported scope: cases filed on or after {MIN_SUPPORTED_FILING_DATE} because the embedded transportation dataset begins on 2026-04-01 even though several other embedded datasets begin on 2025-11-01.
+        </p>
+        <p>Data source: United States Trustee Program · justice.gov/ust/means-testing · Housing / median / thresholds effective {EFFECTIVE_DATE}; transportation effective 2026-04-01.</p>
       </footer>
     </div>
   );

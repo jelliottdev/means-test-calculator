@@ -1,0 +1,558 @@
+{
+  "kind": "transportation",
+  "effective_date": "2026-04-01",
+  "source_url": "https://www.justice.gov/ust/means-testing",
+  "coverage": "national + regional + MSA",
+  "ownership_1_car": 662,
+  "ownership_2_car": 1324,
+  "public_transport": 244,
+  "regions": {
+    "South": {
+      "states": [
+        "TX",
+        "OK",
+        "AR",
+        "LA",
+        "MS",
+        "TN",
+        "KY",
+        "WV",
+        "VA",
+        "MD",
+        "DC",
+        "DE",
+        "NC",
+        "SC",
+        "GA",
+        "FL",
+        "AL"
+      ],
+      "regional": [
+        281,
+        562
+      ],
+      "msas": {
+        "Atlanta": {
+          "counties": {
+            "GA": [
+              "Barrow",
+              "Bartow",
+              "Butts",
+              "Carroll",
+              "Cherokee",
+              "Clayton",
+              "Cobb",
+              "Coweta",
+              "Dawson",
+              "DeKalb",
+              "Douglas",
+              "Fayette",
+              "Forsyth",
+              "Fulton",
+              "Gwinnett",
+              "Haralson",
+              "Heard",
+              "Henry",
+              "Jasper",
+              "Lumpkin",
+              "Meriwether",
+              "Morgan",
+              "Newton",
+              "Paulding",
+              "Pickens",
+              "Pike",
+              "Rockdale",
+              "Spalding",
+              "Walton"
+            ]
+          },
+          "costs": [
+            320,
+            640
+          ]
+        },
+        "Baltimore": {
+          "counties": {
+            "MD": [
+              "Anne Arundel",
+              "Baltimore County",
+              "Carroll",
+              "Harford",
+              "Howard",
+              "Queen Anne's",
+              "Baltimore city"
+            ]
+          },
+          "costs": [
+            306,
+            612
+          ]
+        },
+        "Dallas-Ft. Worth": {
+          "counties": {
+            "TX": [
+              "Collin",
+              "Dallas",
+              "Denton",
+              "Ellis",
+              "Hunt",
+              "Johnson",
+              "Kaufman",
+              "Parker",
+              "Rockwall",
+              "Tarrant",
+              "Wise"
+            ]
+          },
+          "costs": [
+            320,
+            640
+          ]
+        },
+        "Houston": {
+          "counties": {
+            "TX": [
+              "Austin",
+              "Brazoria",
+              "Chambers",
+              "Fort Bend",
+              "Galveston",
+              "Harris",
+              "Liberty",
+              "Montgomery",
+              "San Jacinto",
+              "Waller"
+            ]
+          },
+          "costs": [
+            359,
+            718
+          ]
+        },
+        "Miami": {
+          "counties": {
+            "FL": [
+              "Broward",
+              "Miami-Dade",
+              "Palm Beach"
+            ]
+          },
+          "costs": [
+            400,
+            800
+          ]
+        },
+        "Tampa": {
+          "counties": {
+            "FL": [
+              "Hernando",
+              "Hillsborough",
+              "Pasco",
+              "Pinellas"
+            ]
+          },
+          "costs": [
+            335,
+            670
+          ]
+        },
+        "Washington, D.C.": {
+          "counties": {
+            "DC": [
+              "District of Columbia"
+            ],
+            "MD": [
+              "Charles",
+              "Frederick",
+              "Montgomery",
+              "Prince George's"
+            ],
+            "VA": [
+              "Arlington",
+              "Clarke",
+              "Culpeper",
+              "Fairfax County",
+              "Fauquier",
+              "Loudoun",
+              "Prince William",
+              "Rappahannock",
+              "Spotsylvania",
+              "Stafford",
+              "Warren"
+            ],
+            "WV": [
+              "Jefferson"
+            ]
+          },
+          "costs": [
+            295,
+            590
+          ]
+        }
+      }
+    },
+    "West": {
+      "states": [
+        "NM",
+        "AZ",
+        "CO",
+        "WY",
+        "MT",
+        "NV",
+        "UT",
+        "WA",
+        "OR",
+        "ID",
+        "CA",
+        "AK",
+        "HI"
+      ],
+      "regional": [
+        297,
+        594
+      ],
+      "msas": {
+        "Anchorage": {
+          "counties": {
+            "AK": [
+              "Anchorage",
+              "Matanuska-Susitna"
+            ]
+          },
+          "costs": [
+            219,
+            438
+          ]
+        },
+        "Denver": {
+          "counties": {
+            "CO": [
+              "Adams",
+              "Arapahoe",
+              "Broomfield",
+              "Clear Creek",
+              "Denver",
+              "Douglas",
+              "Elbert",
+              "Gilpin",
+              "Jefferson",
+              "Park"
+            ]
+          },
+          "costs": [
+            337,
+            674
+          ]
+        },
+        "Honolulu": {
+          "counties": {
+            "HI": [
+              "Honolulu"
+            ]
+          },
+          "costs": [
+            252,
+            504
+          ]
+        },
+        "Los Angeles": {
+          "counties": {
+            "CA": [
+              "Los Angeles",
+              "Orange"
+            ]
+          },
+          "costs": [
+            353,
+            706
+          ]
+        },
+        "Phoenix": {
+          "counties": {
+            "AZ": [
+              "Maricopa",
+              "Pinal"
+            ]
+          },
+          "costs": [
+            358,
+            716
+          ]
+        },
+        "San Diego": {
+          "counties": {
+            "CA": [
+              "San Diego"
+            ]
+          },
+          "costs": [
+            335,
+            670
+          ]
+        },
+        "San Francisco": {
+          "counties": {
+            "CA": [
+              "Alameda",
+              "Contra Costa",
+              "Marin",
+              "San Francisco",
+              "San Mateo"
+            ]
+          },
+          "costs": [
+            362,
+            724
+          ]
+        },
+        "Seattle": {
+          "counties": {
+            "WA": [
+              "King",
+              "Pierce",
+              "Snohomish"
+            ]
+          },
+          "costs": [
+            270,
+            540
+          ]
+        }
+      }
+    },
+    "Midwest": {
+      "states": [
+        "ND",
+        "SD",
+        "NE",
+        "KS",
+        "MO",
+        "IL",
+        "IN",
+        "OH",
+        "MI",
+        "WI",
+        "MN",
+        "IA"
+      ],
+      "regional": [
+        259,
+        518
+      ],
+      "msas": {
+        "Chicago": {
+          "counties": {
+            "IL": [
+              "Cook",
+              "DeKalb",
+              "DuPage",
+              "Grundy",
+              "Kane",
+              "Kendall",
+              "Lake",
+              "McHenry",
+              "Will"
+            ],
+            "IN": [
+              "Jasper",
+              "Lake",
+              "Newton",
+              "Porter"
+            ]
+          },
+          "costs": [
+            296,
+            592
+          ]
+        },
+        "Cleveland": {
+          "counties": {
+            "OH": [
+              "Ashtabula",
+              "Cuyahoga",
+              "Geauga",
+              "Lake",
+              "Lorain",
+              "Medina"
+            ]
+          },
+          "costs": [
+            259,
+            518
+          ]
+        },
+        "Detroit": {
+          "counties": {
+            "MI": [
+              "Lapeer",
+              "Livingston",
+              "Macomb",
+              "Oakland",
+              "St. Clair",
+              "Wayne"
+            ]
+          },
+          "costs": [
+            365,
+            730
+          ]
+        },
+        "Minneapolis-St. Paul": {
+          "counties": {
+            "MN": [
+              "Anoka",
+              "Carver",
+              "Chisago",
+              "Dakota",
+              "Hennepin",
+              "Isanti",
+              "Le Sueur",
+              "Mille Lacs",
+              "Ramsey",
+              "Scott",
+              "Sherburne",
+              "Washington",
+              "Wright"
+            ],
+            "WI": [
+              "Pierce",
+              "St. Croix"
+            ]
+          },
+          "costs": [
+            284,
+            568
+          ]
+        },
+        "St. Louis": {
+          "counties": {
+            "MO": [
+              "Franklin",
+              "Jefferson",
+              "Lincoln",
+              "St. Charles",
+              "St. Louis County",
+              "Warren",
+              "St. Louis city",
+              "Crawford"
+            ],
+            "IL": [
+              "Bond",
+              "Calhoun",
+              "Clinton",
+              "Jersey",
+              "Macoupin",
+              "Madison",
+              "Monroe",
+              "St. Clair"
+            ]
+          },
+          "costs": [
+            232,
+            464
+          ]
+        }
+      }
+    },
+    "Northeast": {
+      "states": [
+        "ME",
+        "NH",
+        "VT",
+        "MA",
+        "RI",
+        "CT",
+        "PA",
+        "NY",
+        "NJ"
+      ],
+      "regional": [
+        302,
+        604
+      ],
+      "msas": {
+        "Boston": {
+          "counties": {
+            "MA": [
+              "Essex",
+              "Middlesex",
+              "Norfolk",
+              "Plymouth",
+              "Suffolk"
+            ],
+            "NH": [
+              "Rockingham",
+              "Strafford"
+            ]
+          },
+          "costs": [
+            338,
+            676
+          ]
+        },
+        "New York": {
+          "counties": {
+            "NY": [
+              "Bronx",
+              "Kings",
+              "Nassau",
+              "New York",
+              "Putnam",
+              "Queens",
+              "Richmond",
+              "Rockland",
+              "Suffolk",
+              "Westchester"
+            ],
+            "NJ": [
+              "Bergen",
+              "Essex",
+              "Hudson",
+              "Hunterdon",
+              "Middlesex",
+              "Monmouth",
+              "Morris",
+              "Ocean",
+              "Passaic",
+              "Somerset",
+              "Sussex",
+              "Union"
+            ]
+          },
+          "costs": [
+            401,
+            802
+          ]
+        },
+        "Philadelphia": {
+          "counties": {
+            "PA": [
+              "Bucks",
+              "Chester",
+              "Delaware",
+              "Montgomery",
+              "Philadelphia"
+            ],
+            "NJ": [
+              "Burlington",
+              "Camden",
+              "Gloucester",
+              "Salem"
+            ],
+            "DE": [
+              "New Castle"
+            ],
+            "MD": [
+              "Cecil"
+            ]
+          },
+          "costs": [
+            300,
+            600
+          ]
+        }
+      }
+    }
+  },
+  "source_hash": "embedded-snapshot:b70c3d0c14a0f99da612b8557518869066bef2324563c387ef5938dfca389195"
+}

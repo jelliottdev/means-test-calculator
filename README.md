@@ -138,6 +138,31 @@ React 19 + TypeScript (Vite 8) · Tailwind CSS v4 · Zero runtime dependencies b
 
 ---
 
+## Publication / legal-use guardrails
+
+This repository can help produce a much safer means-test workflow, but no software-only calculator is automatically a "10/10 legally valid tool anywhere in the US" without operational controls around it.
+
+If you want the concrete roadmap for turning this into a best-in-class means-test product, see `docs/best-in-class-roadmap.md`.
+
+Current guardrails in this codebase:
+
+- Filing-date support is explicitly limited to cases filed on or after **April 1, 2026** because the embedded transportation dataset currently begins on that date even though other embedded datasets begin on November 1, 2025
+- Result output now includes dataset provenance, warnings, and assumptions so reviewers can spot fallback logic
+- Publication-readiness scripts exist to validate dataset coverage and source metadata before deployment
+- Embedded runtime resolution is now manifest-backed from the checked-in artifact snapshots, but future-period updates should still be refreshed before production use
+
+To use this in a legally defensible workflow, you should also:
+
+1. keep DOJ/UST data current for the exact filing period;
+2. preserve the audit output with each client matter;
+3. require attorney/paralegal review for county fallbacks, exemptions, and borderline outcomes; and
+4. avoid presenting the result as legal advice or as a substitute for signed petition review.
+
+Operational checks now available in this repo:
+
+- `npm run validate:artifacts -- --filing-date 2026-04-01`
+- `npm run check:publication -- --filing-date 2026-04-01`
+
 ## Disclaimer
 
-For informational purposes only. Not legal advice. Housing allowances reflect IRS Local Standards (state-level averages, with MSA overrides for 23 major metro areas). Run `npm run update-data` to fetch current county-level data. Verify results with a licensed bankruptcy attorney before filing.
+For informational purposes only. Not legal advice. Housing allowances reflect IRS Local Standards, including nationwide county and county-equivalent overrides in the embedded snapshot plus grouped MSA fallbacks where applicable. Run `npm run update-data` to fetch current county-level data. Verify results with a licensed bankruptcy attorney before filing.

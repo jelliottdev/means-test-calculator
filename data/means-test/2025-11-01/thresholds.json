@@ -1,0 +1,10 @@
+{
+  "kind": "thresholds",
+  "effective_date": "2025-11-01",
+  "source_url": "https://www.justice.gov/ust/means-testing",
+  "coverage": "Cases Filed On or After November 1, 2025",
+  "abuse_threshold_low": 9075,
+  "abuse_threshold_high": 15150,
+  "admin_expense_multiplier": 0.1,
+  "source_hash": "embedded-snapshot:82d982ce7a40c23e9f64b6ab95fff78a773a28675e154b797491badb6b3cac97"
+}

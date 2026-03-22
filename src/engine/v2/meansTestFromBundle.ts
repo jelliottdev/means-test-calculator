@@ -1,5 +1,11 @@
+import { countyNamesMatch } from "../../lib/countyName";
 import type { MeansTestDatasetBundle } from "../../datasets/types";
 import type { CalculationAudit, LineItemV2, MeansTestInputV2, MeansTestResultV2 } from "./types";
+
+function getOwnershipCapForVehicle(vehicleIndex: number, ownership1Car: number, ownership2CarTotal: number): number {
+  if (vehicleIndex <= 0) return ownership1Car;
+  return Math.max(0, ownership2CarTotal - ownership1Car);
+}
 
 function buildAudit(input: MeansTestInputV2, bundle: MeansTestDatasetBundle, assumptions: string[], warnings: string[]): CalculationAudit {
   return {
@@ -10,30 +16,45 @@ function buildAudit(input: MeansTestInputV2, bundle: MeansTestDatasetBundle, ass
         effectiveDate: bundle.median_income.effective_date,
         periodLabel: bundle.median_income.coverage ?? bundle.median_income.effective_date,
         sourceUrl: bundle.median_income.source_url,
+        sourceHash: bundle.median_income.source_hash,
+        fetchedAt: bundle.median_income.fetched_at,
+        notes: bundle.median_income.warnings,
       },
       national_standards: {
         key: bundle.national_standards.kind,
         effectiveDate: bundle.national_standards.effective_date,
         periodLabel: bundle.national_standards.coverage ?? bundle.national_standards.effective_date,
         sourceUrl: bundle.national_standards.source_url,
+        sourceHash: bundle.national_standards.source_hash,
+        fetchedAt: bundle.national_standards.fetched_at,
+        notes: bundle.national_standards.warnings,
       },
       transportation: {
         key: bundle.transportation.kind,
         effectiveDate: bundle.transportation.effective_date,
         periodLabel: bundle.transportation.coverage ?? bundle.transportation.effective_date,
         sourceUrl: bundle.transportation.source_url,
+        sourceHash: bundle.transportation.source_hash,
+        fetchedAt: bundle.transportation.fetched_at,
+        notes: bundle.transportation.warnings,
       },
       housing: {
         key: bundle.housing.kind,
         effectiveDate: bundle.housing.effective_date,
         periodLabel: bundle.housing.coverage ?? bundle.housing.effective_date,
         sourceUrl: bundle.housing.source_url,
+        sourceHash: bundle.housing.source_hash,
+        fetchedAt: bundle.housing.fetched_at,
+        notes: bundle.housing.warnings,
       },
       thresholds: {
         key: bundle.thresholds.kind,
         effectiveDate: bundle.thresholds.effective_date,
         periodLabel: bundle.thresholds.coverage ?? bundle.thresholds.effective_date,
         sourceUrl: bundle.thresholds.source_url,
+        sourceHash: bundle.thresholds.source_hash,
+        fetchedAt: bundle.thresholds.fetched_at,
+        notes: bundle.thresholds.warnings,
       },
     },
     assumptions,
@@ -48,10 +69,14 @@ function buildAudit(input: MeansTestInputV2, bundle: MeansTestDatasetBundle, ass
 
 function getHousingAllowanceFromBundle(bundle: MeansTestDatasetBundle, state: string, county: string, householdSize: number) {
   const idx = Math.min(householdSize, 5) - 1;
-  const normalizedCounty = county.trim().toLowerCase();
+  for (const countyOverride of bundle.housing.county_overrides ?? []) {
+    if (countyOverride.state === state && countyNamesMatch(countyOverride.county, county)) {
+      return { utility: countyOverride.utility[idx], mortgageCap: countyOverride.mortgage[idx], matched: `county:${countyOverride.county}` };
+    }
+  }
   for (const msa of bundle.housing.msa_overrides ?? []) {
     const msaCounties = msa.counties[state];
-    if (msaCounties?.some((c) => c.toLowerCase() === normalizedCounty)) {
+    if (msaCounties?.some((c) => countyNamesMatch(c, county))) {
       return { utility: msa.utility[idx], mortgageCap: msa.mortgage[idx], matched: `msa:${msa.name}` };
     }
   }
@@ -62,19 +87,19 @@ function getHousingAllowanceFromBundle(bundle: MeansTestDatasetBundle, state: st
   return { utility: std.utility[idx], mortgageCap: std.mortgage[idx], matched: "state_default" };
 }
 
-function getTransportOperatingCostFromBundle(bundle: MeansTestDatasetBundle, state: string, county: string, numCars: number): number {
+function getTransportOperatingCostFromBundle(bundle: MeansTestDatasetBundle, state: string, county: string, numCars: number) {
   const idx = numCars >= 2 ? 1 : 0;
-  for (const region of Object.values(bundle.transportation.regions)) {
+  for (const [regionName, region] of Object.entries(bundle.transportation.regions)) {
     if (!region.states.includes(state)) continue;
-    for (const msa of Object.values(region.msas)) {
+    for (const [msaName, msa] of Object.entries(region.msas)) {
       const counties = msa.counties[state];
-      if (counties?.some((c) => c.toLowerCase() === county.toLowerCase())) {
-        return msa.costs[idx];
+      if (counties?.some((c) => countyNamesMatch(c, county))) {
+        return { amount: msa.costs[idx], matched: `msa:${msaName}`, region: regionName };
       }
     }
-    return region.regional[idx];
+    return { amount: region.regional[idx], matched: `regional:${regionName}`, region: regionName };
   }
-  return 281;
+  return { amount: 281, matched: "fallback", region: undefined };
 }
 
 export function runMeansTestFromBundle(input: MeansTestInputV2, bundle: MeansTestDatasetBundle): MeansTestResultV2 {
@@ -143,6 +168,9 @@ export function runMeansTestFromBundle(input: MeansTestInputV2, bundle: MeansTes
   deductions.push({ label: "Out-of-Pocket Healthcare (National Standard)", amount: totalHC, source: "national", formLine: "7", datasetKey: "national_standards" });
 
   const housing = getHousingAllowanceFromBundle(bundle, input.state, input.county, input.householdSize);
+  if (housing.matched.startsWith("msa:")) warnings.push(`Housing uses grouped ${housing.matched.slice(4)} override for ${input.county || input.state}; verify the exact county row on the current U.S. Trustee housing chart.`);
+  if (housing.matched === "state_default") warnings.push("Housing uses a statewide default instead of an exact county row; verify the current U.S. Trustee county chart before filing.");
+  if (housing.matched === "fallback") warnings.push("Housing used the absolute fallback allowance because no state dataset matched; do not rely on this result without correcting the data.");
   deductions.push({ label: "Housing: Non-Mortgage Expenses (Local Standard)", amount: housing.utility, source: "local", formLine: "8a", datasetKey: "housing", note: housing.matched });
   const actualMortgage = input.monthlyMortgageRent;
   const mortgageDeduction = actualMortgage > 0 ? Math.min(housing.mortgageCap, actualMortgage) : housing.mortgageCap;
@@ -153,27 +181,40 @@ export function runMeansTestFromBundle(input: MeansTestInputV2, bundle: MeansTes
     deductions.push({ label: "Public Transportation (National Standard)", amount: bundle.transportation.public_transport, source: "national", formLine: "14", datasetKey: "transportation" });
   } else {
     const numVehicles = Math.min(input.vehicles.length, 2);
-    const operatingCost = getTransportOperatingCostFromBundle(bundle, input.state, input.county, numVehicles);
-    deductions.push({ label: `Vehicle Operating Costs (${numVehicles} car${numVehicles > 1 ? "s" : ""}, Local Standard)`, amount: operatingCost, source: "local", formLine: "12", datasetKey: "transportation" });
+    const transport = getTransportOperatingCostFromBundle(bundle, input.state, input.county, numVehicles);
+    if (transport.matched.startsWith("regional:")) warnings.push(`Transportation uses ${transport.region} regional operating costs instead of an exact MSA/county match; verify the current IRS transportation chart before filing.`);
+    if (transport.matched === "fallback") warnings.push("Transportation used the absolute fallback operating cost because no regional dataset matched; do not rely on this result without correcting the data.");
+    deductions.push({ label: `Vehicle Operating Costs (${numVehicles} car${numVehicles > 1 ? "s" : ""}, Local Standard)`, amount: transport.amount, source: "local", formLine: "12", datasetKey: "transportation", note: transport.matched });
     input.vehicles.slice(0, 2).forEach((vehicle, idx) => {
       if (!vehicle.hasLoanOrLease || vehicle.monthlyPayment <= 0) return;
-      const ownershipStd = idx === 0 ? bundle.transportation.ownership_1_car : bundle.transportation.ownership_1_car;
-      const ownershipDeduction = Math.min(ownershipStd, vehicle.monthlyPayment);
-      deductions.push({ label: `Vehicle Ownership/Lease (${vehicle.id})`, amount: ownershipDeduction, source: "local", formLine: "13a", datasetKey: "transportation" });
+      const ownershipStd = getOwnershipCapForVehicle(
+        idx,
+        bundle.transportation.ownership_1_car,
+        bundle.transportation.ownership_2_car
+      );
+      const ownershipDeduction = Math.max(0, ownershipStd - vehicle.monthlyPayment);
+      deductions.push({
+        label: `Net ${vehicle.id} Ownership / Lease Expense`,
+        amount: ownershipDeduction,
+        source: "local",
+        formLine: idx === 0 ? "13c" : "13f",
+        datasetKey: "transportation",
+        note: `IRS standard $${ownershipStd} minus average monthly debt payment $${vehicle.monthlyPayment}`,
+      });
     });
   }
 
   if (input.monthlyTaxes > 0) deductions.push({ label: "Taxes (Payroll & Income)", amount: input.monthlyTaxes, source: "actual", formLine: "16" });
   if (input.monthlyInvoluntaryDeductions > 0) deductions.push({ label: "Involuntary Payroll Deductions", amount: input.monthlyInvoluntaryDeductions, source: "actual", formLine: "17" });
   if (input.monthlyTermLifeInsurance > 0) deductions.push({ label: "Term Life Insurance Premiums", amount: input.monthlyTermLifeInsurance, source: "actual", formLine: "18" });
-  if (input.monthlyEducationEmployment > 0) deductions.push({ label: "Education (Employment-Related)", amount: input.monthlyEducationEmployment, source: "actual", formLine: "19" });
-  if (input.monthlyChildcare > 0) deductions.push({ label: "Childcare", amount: input.monthlyChildcare, source: "actual", formLine: "20" });
-  if (input.monthlyChronicHealthcare > 0) deductions.push({ label: "Additional Healthcare (Chronic/Disabled)", amount: input.monthlyChronicHealthcare, source: "actual", formLine: "21" });
-  if (input.monthlyTelecom > 0) deductions.push({ label: "Telecommunications", amount: Math.min(bundle.national_standards.telecom_allowance, input.monthlyTelecom), source: "actual", formLine: "22", datasetKey: "national_standards" });
+  if (input.monthlySupportObligations > 0) deductions.push({ label: "Court-Ordered Payments", amount: input.monthlySupportObligations, source: "actual", formLine: "19", note: "Current monthly payments required by court or administrative order" });
+  if (input.monthlyEducationEmployment > 0) deductions.push({ label: "Education", amount: input.monthlyEducationEmployment, source: "actual", formLine: "20", note: "Only include education allowed by Official Form 122A-2 line 20" });
+  if (input.monthlyChildcare > 0) deductions.push({ label: "Childcare", amount: input.monthlyChildcare, source: "actual", formLine: "21" });
+  if (input.monthlyChronicHealthcare > 0) deductions.push({ label: "Additional Healthcare (Excluding Insurance Costs)", amount: input.monthlyChronicHealthcare, source: "actual", formLine: "22", note: "Only the amount above the Line 7 out-of-pocket standard" });
+  if (input.monthlyTelecom > 0) deductions.push({ label: "Optional Telephones and Telephone Services", amount: Math.min(bundle.national_standards.telecom_allowance, input.monthlyTelecom), source: "actual", formLine: "23", datasetKey: "national_standards", note: input.monthlyTelecom > bundle.national_standards.telecom_allowance ? `Capped at IRS standard $${bundle.national_standards.telecom_allowance}; actual $${input.monthlyTelecom}` : "Do not include basic home phone, internet, or basic cell phone service" });
   if (input.monthlyHealthInsurance > 0) deductions.push({ label: "Health Insurance Premiums", amount: input.monthlyHealthInsurance, source: "actual", formLine: "25a" });
   if (input.monthlyDependentChildEducation > 0) deductions.push({ label: "Dependent Children's Education (K-12)", amount: input.monthlyDependentChildEducation, source: "actual", formLine: "25c" });
   if (input.monthlySpecialDietFood > 0) deductions.push({ label: "Special Diet / Medical Food", amount: input.monthlySpecialDietFood, source: "actual", formLine: "25d" });
-  if (input.monthlySupportObligations > 0) deductions.push({ label: "Domestic Support Obligations", amount: input.monthlySupportObligations, source: "actual", formLine: "25e" });
   if (input.monthlyPriorityDebts > 0) {
     deductions.push({ label: "Priority Debt Payments", amount: input.monthlyPriorityDebts, source: "actual", formLine: "24-26" });
     const adminExpense = Math.round(input.monthlyPriorityDebts * bundle.thresholds.admin_expense_multiplier);

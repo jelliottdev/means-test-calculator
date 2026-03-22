@@ -1,5 +1,5 @@
 import type { HousingArtifact } from "../../src/datasets/types";
-import { createHousingCountyModel, addHousingCountyRecord, countHousingCounties } from "./housing-county-model";
+import { createHousingCountyModel, addHousingCountyRecord, countHousingCounties, toHousingCountyOverrides } from "./housing-county-model";
 import { dedupeCounties } from "./geography";
 import { parseCells, parseDollar, tableRows } from "./html";
 import { deriveHousingMsaOverridesDirect } from "./parse-housing-msa-direct";
@@ -120,6 +120,7 @@ export function parseHousingArtifactV14(params: {
     fetched_at: params.fetchedAt,
     coverage: `state defaults derived from retained county rows across ${parsedStates} states; total counties retained=${countHousingCounties(model)}; balanced_adjacent_overrides=${adjacentOverrides.length}; overrides=${msaOverrides.length}`,
     warnings,
+    county_overrides: toHousingCountyOverrides(model),
     state_defaults: stateDefaults,
     msa_overrides: msaOverrides,
   };
