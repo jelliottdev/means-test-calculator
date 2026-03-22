@@ -205,6 +205,40 @@ test("engines map reviewed Official Form 122A-2 lines 19-23 to the correct deduc
   assert.equal(v2ByLine.get("23")?.amount, 195);
 });
 
+
+
+test("engines remap reviewed form lines 25, 29, 30, 35, and 36 and cap line 30 at 5%", () => {
+  const legacy = runMeansTest(createLegacyInput({
+    monthlyHealthInsurance: 400,
+    monthlyDependentChildEducation: 500,
+    monthlySpecialDietFood: 1000,
+    monthlyPriorityDebts: 250,
+  }));
+  assert.notEqual(legacy.outcome, "EXEMPT");
+  assert.notEqual(legacy.outcome, "BELOW_MEDIAN");
+  const legacyByLine = new Map(legacy.deductions.map((line) => [line.formLine, line]));
+  assert.equal(legacyByLine.get("25")?.label, "Health / Disability Insurance and Health Savings Account Expenses");
+  assert.equal(legacyByLine.get("29")?.label, "Dependent Children's Education (K-12, Legally Required)");
+  assert.equal(legacyByLine.get("30")?.amount, 48.85);
+  assert.equal(legacyByLine.get("35")?.amount, 250);
+  assert.equal(legacyByLine.get("36")?.amount, 25);
+
+  const v2 = runMeansTestV2(createV2Input({
+    county: "Orange",
+    state: "CA",
+    monthlyHealthInsurance: 400,
+    monthlyDependentChildEducation: 500,
+    monthlySpecialDietFood: 1000,
+    monthlyPriorityDebts: 250,
+  }));
+  const v2ByLine = new Map(v2.deductions.map((line) => [line.formLine, line]));
+  assert.equal(v2ByLine.get("25")?.label, "Health / Disability Insurance and Health Savings Account Expenses");
+  assert.equal(v2ByLine.get("29")?.label, "Education Expenses for Dependent Children Under 18");
+  assert.equal(v2ByLine.get("30")?.amount, 48.85);
+  assert.equal(v2ByLine.get("35")?.amount, 250);
+  assert.equal(v2ByLine.get("36")?.amount, 25);
+});
+
 test("v2 engine emits warnings and assumptions for missing county and missing mortgage actual", () => {
   const result = runMeansTestV2(createV2Input());
   assert.ok(result.audit.warnings.some((warning) => warning.includes("County not provided")));

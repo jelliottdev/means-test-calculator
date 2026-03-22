@@ -451,7 +451,7 @@ function ResultView({
           </tbody>
           <tfoot>
             <tr className="total-row">
-              <td colSpan={3}>Total Monthly Deductions (Line 34)</td>
+              <td colSpan={3}>Total Deductions (Line 38)</td>
               <td className="right mono">{fmt(r.totalDeductions)}</td>
             </tr>
           </tfoot>
@@ -937,7 +937,7 @@ export default function App() {
               </div>
 
               <h4 style={{ fontFamily: "var(--mono)", fontSize: "0.72rem", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--ink-3)", margin: "0.75rem 0 0.25rem" }}>
-                Insurance &amp; Benefits (Lines 18, 22–23, 25a)
+                Insurance &amp; Benefits (Lines 18, 22–23, 25)
               </h4>
               <div className="grid-2">
                 <Field label="Term Life Insurance Premiums" note="For debtor's dependents only (Line 18)">
@@ -946,7 +946,7 @@ export default function App() {
                     onChange={v => set("monthlyTermLifeInsurance", v)}
                   />
                 </Field>
-                <Field label="Health Insurance Premiums" note="Premiums paid, not reimbursed (Line 25a)">
+                <Field label="Health / Disability Insurance + HSA" note="Enter the total actually spent for line 25 items (Line 25)">
                   <NumInput
                     value={input.monthlyHealthInsurance}
                     onChange={v => set("monthlyHealthInsurance", v)}
@@ -979,7 +979,7 @@ export default function App() {
               </div>
 
               <h4 style={{ fontFamily: "var(--mono)", fontSize: "0.72rem", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--ink-3)", margin: "0.75rem 0 0.25rem" }}>
-                Childcare & Special Circumstances (Lines 21–22, 25c, 25d)
+                Childcare & Special Circumstances (Lines 21–22, 29–30)
               </h4>
               <div className="grid-2">
                 <Field
@@ -1001,8 +1001,8 @@ export default function App() {
                   />
                 </Field>
                 <Field
-                  label="Dependent Children's Education (K-12)"
-                  note="Legally required tuition/fees for children under 18 (Line 25c)"
+                  label="Education Expenses for Dependent Children Under 18"
+                  note="Verify the current per-child cap and documentation requirements (Line 29)"
                 >
                   <NumInput
                     value={input.monthlyDependentChildEducation}
@@ -1010,8 +1010,8 @@ export default function App() {
                   />
                 </Field>
                 <Field
-                  label="Special Diet / Medical Food"
-                  note="Additional food costs above national standard for disability or chronic illness (Line 25d)"
+                  label="Additional Food and Clothing Expense"
+                  note="Subject to the line 30 5% cap and documentation requirements"
                 >
                   <NumInput
                     value={input.monthlySpecialDietFood}
@@ -1021,12 +1021,12 @@ export default function App() {
               </div>
 
               <h4 style={{ fontFamily: "var(--mono)", fontSize: "0.72rem", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--ink-3)", margin: "0.75rem 0 0.25rem" }}>
-                Priority Debts (Lines 24–26)
+                Priority Claims & Chapter 13 Admin (Lines 35–36)
               </h4>
               <div className="grid-2">
                 <Field
-                  label="Priority Debt Payments"
-                  note="Back taxes, support arrears (Lines 24–26) — also triggers 10% Ch.13 admin deduction"
+                  label="Past-Due Priority Claims"
+                  note="Past-due priority claims only; also drives the line 36 Chapter 13 admin deduction"
                 >
                   <NumInput
                     value={input.monthlyPriorityDebts}

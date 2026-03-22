@@ -334,50 +334,60 @@ export function runMeansTest(input: MeansTestInput): MeansTestResult {
     });
   }
 
-  // Line 25a: Health insurance premiums
+  // Line 25: Health insurance, disability insurance, and health savings account expenses
   if (input.monthlyHealthInsurance > 0) {
-    deductions.push({ label: "Health Insurance Premiums", amount: input.monthlyHealthInsurance, source: "actual", formLine: "25a" });
+    deductions.push({
+      label: "Health / Disability Insurance and Health Savings Account Expenses",
+      amount: input.monthlyHealthInsurance,
+      source: "actual",
+      formLine: "25",
+      note: "Enter the total actually spent for line 25 items",
+    });
   }
 
-  // Line 25c: Education expenses for dependent children (K-12)
+  // Line 29: Education expenses for dependent children who are younger than 18
   if (input.monthlyDependentChildEducation > 0) {
     deductions.push({
       label: "Dependent Children's Education (K-12, Legally Required)",
       amount: input.monthlyDependentChildEducation,
       source: "actual",
-      formLine: "25c",
-      note: "Tuition/fees for children under 18 attending private/charter school where legally required",
+      formLine: "29",
+      note: "Verify the current per-child cap and documentation requirements before filing",
     });
   }
 
-  // Line 25d: Additional food/clothing for special medical/dietary needs
+  // Line 30: Additional food and clothing expense (capped at 5% of line 6 standard)
   if (input.monthlySpecialDietFood > 0) {
+    const foodClothingCap = Math.round(foodClothing * 0.05 * 100) / 100;
+    const allowedFoodClothing = Math.min(foodClothingCap, input.monthlySpecialDietFood);
     deductions.push({
-      label: "Special Diet / Medical Food (Above National Standard)",
-      amount: input.monthlySpecialDietFood,
+      label: "Additional Food and Clothing Expense",
+      amount: allowedFoodClothing,
       source: "actual",
-      formLine: "25d",
-      note: "Additional food costs above Line 6 standard due to disability, chronic illness, or medically required diet",
+      formLine: "30",
+      note: input.monthlySpecialDietFood > foodClothingCap
+        ? `Capped at 5% of line 6 allowance ($${foodClothingCap.toFixed(2)}); actual $${input.monthlySpecialDietFood}`
+        : "Subject to documentation and reasonableness requirements",
     });
   }
 
-  // Lines 24–26: Priority debt payments (back taxes, domestic support arrears)
+  // Line 35: Past-due priority claims
   if (input.monthlyPriorityDebts > 0) {
     deductions.push({
-      label: "Priority Debt Payments (Back Taxes, Support Arrears)",
+      label: "Past-Due Priority Claims",
       amount: input.monthlyPriorityDebts,
       source: "actual",
-      formLine: "24-26",
+      formLine: "35",
     });
 
-    // Line 27: Chapter 13 admin expenses (10% of priority debt payments)
+    // Line 36: Chapter 13 administrative expense
     const adminExpense = Math.round(input.monthlyPriorityDebts * ADMIN_EXPENSE_MULTIPLIER);
     if (adminExpense > 0) {
       deductions.push({
         label: "Chapter 13 Administrative Expenses (10% of Priority Debts)",
         amount: adminExpense,
         source: "calculation",
-        formLine: "27",
+        formLine: "36",
         note: `10% × $${input.monthlyPriorityDebts}`,
       });
     }

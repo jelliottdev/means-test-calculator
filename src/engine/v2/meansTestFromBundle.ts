@@ -212,13 +212,17 @@ export function runMeansTestFromBundle(input: MeansTestInputV2, bundle: MeansTes
   if (input.monthlyChildcare > 0) deductions.push({ label: "Childcare", amount: input.monthlyChildcare, source: "actual", formLine: "21" });
   if (input.monthlyChronicHealthcare > 0) deductions.push({ label: "Additional Healthcare (Excluding Insurance Costs)", amount: input.monthlyChronicHealthcare, source: "actual", formLine: "22", note: "Only the amount above the Line 7 out-of-pocket standard" });
   if (input.monthlyTelecom > 0) deductions.push({ label: "Optional Telephones and Telephone Services", amount: Math.min(bundle.national_standards.telecom_allowance, input.monthlyTelecom), source: "actual", formLine: "23", datasetKey: "national_standards", note: input.monthlyTelecom > bundle.national_standards.telecom_allowance ? `Capped at IRS standard $${bundle.national_standards.telecom_allowance}; actual $${input.monthlyTelecom}` : "Do not include basic home phone, internet, or basic cell phone service" });
-  if (input.monthlyHealthInsurance > 0) deductions.push({ label: "Health Insurance Premiums", amount: input.monthlyHealthInsurance, source: "actual", formLine: "25a" });
-  if (input.monthlyDependentChildEducation > 0) deductions.push({ label: "Dependent Children's Education (K-12)", amount: input.monthlyDependentChildEducation, source: "actual", formLine: "25c" });
-  if (input.monthlySpecialDietFood > 0) deductions.push({ label: "Special Diet / Medical Food", amount: input.monthlySpecialDietFood, source: "actual", formLine: "25d" });
+  if (input.monthlyHealthInsurance > 0) deductions.push({ label: "Health / Disability Insurance and Health Savings Account Expenses", amount: input.monthlyHealthInsurance, source: "actual", formLine: "25", note: "Enter the total actually spent for line 25 items" });
+  if (input.monthlyDependentChildEducation > 0) deductions.push({ label: "Education Expenses for Dependent Children Under 18", amount: input.monthlyDependentChildEducation, source: "actual", formLine: "29", note: "Verify the current per-child cap and documentation requirements before filing" });
+  if (input.monthlySpecialDietFood > 0) {
+    const foodClothingCap = Math.round(foodClothing * 0.05 * 100) / 100;
+    const allowedFoodClothing = Math.min(foodClothingCap, input.monthlySpecialDietFood);
+    deductions.push({ label: "Additional Food and Clothing Expense", amount: allowedFoodClothing, source: "actual", formLine: "30", note: input.monthlySpecialDietFood > foodClothingCap ? `Capped at 5% of line 6 allowance ($${foodClothingCap.toFixed(2)}); actual $${input.monthlySpecialDietFood}` : "Subject to documentation and reasonableness requirements" });
+  }
   if (input.monthlyPriorityDebts > 0) {
-    deductions.push({ label: "Priority Debt Payments", amount: input.monthlyPriorityDebts, source: "actual", formLine: "24-26" });
+    deductions.push({ label: "Past-Due Priority Claims", amount: input.monthlyPriorityDebts, source: "actual", formLine: "35" });
     const adminExpense = Math.round(input.monthlyPriorityDebts * bundle.thresholds.admin_expense_multiplier);
-    if (adminExpense > 0) deductions.push({ label: "Chapter 13 Administrative Expenses", amount: adminExpense, source: "calculation", formLine: "27", datasetKey: "thresholds" });
+    if (adminExpense > 0) deductions.push({ label: "Chapter 13 Administrative Expenses", amount: adminExpense, source: "calculation", formLine: "36", datasetKey: "thresholds" });
   }
   if (input.monthlyOtherSecuredDebt > 0) deductions.push({ label: "Other Secured Debt Payments", amount: input.monthlyOtherSecuredDebt, source: "actual", formLine: "33" });
 
