@@ -79,7 +79,7 @@ function parseRow(row: string): string[] {
 
 /** Strip $ , and whitespace then parse integer */
 function parseDollar(s: string): number {
-  return parseInt(s.replace(/[\$,\s]/g, ""), 10) || 0;
+  return parseInt(s.replace(/[$,\s]/g, ""), 10) || 0;
 }
 
 /** Extract all table rows from HTML */

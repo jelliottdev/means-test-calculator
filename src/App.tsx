@@ -1,6 +1,11 @@
 import { useState, useEffect, useCallback } from "react";
-import { STATE_NAMES, EFFECTIVE_DATE, PERIOD_LABEL, getHousingAllowance } from "./data/meansTestData";
-import { runMeansTest, type MeansTestInput, type MeansTestResult } from "./engine/meansTest";
+import { STATE_NAMES, EFFECTIVE_DATE, getHousingAllowanceDetails } from "./data/meansTestData";
+import { EMBEDDED_MIN_SUPPORTED_FILING_DATE, getEmbeddedDatasetSupport } from "./datasets/embedded";
+import { buildAuditPacket, downloadAuditPacket, getReviewerSignoffReasons, isReviewerSignoffRequired } from "./auditPacket";
+import { type MeansTestInput } from "./engine/meansTest";
+import { normalizeLegacyInput } from "./engine/v2/normalize";
+import { runMeansTestV2 } from "./engine/v2/meansTestV2";
+import type { DatasetVersionMeta, MeansTestResultV2 } from "./engine/v2/types";
 import "./index.css";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -18,11 +23,13 @@ const INCOME_TYPES = [
 ];
 
 const SESSION_KEY = "meanstest_v2";
+const MIN_SUPPORTED_FILING_DATE = EMBEDDED_MIN_SUPPORTED_FILING_DATE;
+
 
 // ── Default State ─────────────────────────────────────────────────────────────
 
 const DEFAULT_INPUT: MeansTestInput = {
-  filingDate: new Date().toISOString().split("T")[0],
+  filingDate: MIN_SUPPORTED_FILING_DATE,
   state: "",
   county: "",
   householdSize: 1,
@@ -33,6 +40,8 @@ const DEFAULT_INPUT: MeansTestInput = {
   numVehicles: 1,
   hasCarPayment: false,
   monthlyCarPayment: 0,
+  hasSecondCarPayment: false,
+  monthlySecondCarPayment: 0,
   monthlyMortgageRent: 0,
   monthlyTaxes: 0,
   monthlyInvoluntaryDeductions: 0,
@@ -132,6 +141,109 @@ function StatCard({
   );
 }
 
+function AuditPanel({
+  result,
+}: {
+  result: MeansTestResultV2;
+}) {
+  const datasetEntries = Object.entries(result.audit.datasets) as Array<[string, DatasetVersionMeta]>;
+
+  return (
+    <div className="audit-panel">
+      <div className="audit-section">
+        <h4 className="audit-title">Dataset Provenance</h4>
+        <div className="audit-grid">
+          {datasetEntries.map(([key, meta]) => (
+            <div key={key} className="audit-card">
+              <div className="audit-card-label">{key.replaceAll("_", " ")}</div>
+              <div className="audit-card-date">{meta.effectiveDate}</div>
+              <div className="audit-card-sub">{meta.periodLabel}</div>
+              <div className="audit-card-sub"><a href={meta.sourceUrl} target="_blank" rel="noreferrer">Official source</a></div>
+              {meta.sourceHash && <div className="audit-card-sub">Snapshot: <code>{meta.sourceHash.slice(0, 28)}…</code></div>}
+              {meta.notes?.map((note, idx) => <div key={idx} className="audit-card-sub">Note: {note}</div>)}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {result.audit.warnings.length > 0 && (
+        <div className="audit-section">
+          <h4 className="audit-title">Warnings</h4>
+          <ul className="audit-list audit-list-warn">
+            {result.audit.warnings.map((warning, idx) => (
+              <li key={idx}>{warning}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {result.audit.assumptions.length > 0 && (
+        <div className="audit-section">
+          <h4 className="audit-title">Assumptions Used</h4>
+          <ul className="audit-list audit-list-note">
+            {result.audit.assumptions.map((assumption, idx) => (
+              <li key={idx}>{assumption}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+function ReviewerSignoffSection({
+  reviewerName,
+  reviewerNotes,
+  reasons,
+  required,
+  onReviewerNameChange,
+  onReviewerNotesChange,
+}: {
+  reviewerName: string;
+  reviewerNotes: string;
+  reasons?: string[];
+  required?: boolean;
+  onReviewerNameChange: (value: string) => void;
+  onReviewerNotesChange: (value: string) => void;
+}) {
+  return (
+    <div className="section">
+      <h3 className="section-title">Reviewer Signoff (optional)</h3>
+      <div className="section-body">
+        {required && (
+          <>
+            <p className="section-note">Reviewer name is required before exporting this result.</p>
+            <ul className="audit-list audit-list-note">
+              {(reasons ?? []).map((reason, idx) => <li key={idx}>{reason}</li>)}
+            </ul>
+          </>
+        )}
+        <div className="grid-2">
+          <Field label="Reviewer Name">
+            <input
+              type="text"
+              className="text-input"
+              value={reviewerName}
+              onChange={e => onReviewerNameChange(e.target.value)}
+              placeholder="Attorney / paralegal name"
+            />
+          </Field>
+          <Field label="Reviewer Notes" note="Included in the exported audit packet">
+            <input
+              type="text"
+              className="text-input"
+              value={reviewerNotes}
+              onChange={e => onReviewerNotesChange(e.target.value)}
+              placeholder="Review notes, exceptions, or follow-up items"
+            />
+          </Field>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Result View ───────────────────────────────────────────────────────────────
 
 function ResultView({
@@ -139,11 +251,27 @@ function ResultView({
   input,
   onReset,
 }: {
-  result: MeansTestResult;
+  result: MeansTestResultV2;
   input: MeansTestInput;
   onReset: () => void;
 }) {
   const stateName = STATE_NAMES[input.state] ?? input.state;
+  const [reviewerName, setReviewerName] = useState("");
+  const [reviewerNotes, setReviewerNotes] = useState("");
+  const reviewerRequiredForExport = isReviewerSignoffRequired(result);
+  const reviewerSignoffReasons = getReviewerSignoffReasons(result);
+  const exportAuditPacket = () => downloadAuditPacket(buildAuditPacket(
+    input,
+    result,
+    new Date().toISOString(),
+    reviewerName || reviewerNotes
+      ? {
+          reviewerName: reviewerName || undefined,
+          reviewerNotes: reviewerNotes || undefined,
+          reviewedAt: new Date().toISOString(),
+        }
+      : undefined,
+  ));
 
   if (result.outcome === "EXEMPT") {
     return (
@@ -156,8 +284,18 @@ function ResultView({
           </div>
         </div>
         <p className="exempt-reason">{result.reason}</p>
+        <ReviewerSignoffSection
+          reviewerName={reviewerName}
+          reviewerNotes={reviewerNotes}
+          reasons={reviewerSignoffReasons}
+          onReviewerNameChange={setReviewerName}
+          required={reviewerRequiredForExport}
+          onReviewerNotesChange={setReviewerNotes}
+        />
+        <AuditPanel result={result} />
         <div className="result-actions">
           <button className="reset-btn" onClick={onReset}>← New Calculation</button>
+          <button className="print-btn" onClick={exportAuditPacket} disabled={reviewerRequiredForExport && !reviewerName.trim()} title={reviewerRequiredForExport && !reviewerName.trim() ? "Reviewer name is required before export for warning/assumption/borderline results" : undefined}>Export Audit JSON</button>
           <button className="print-btn" onClick={() => window.print()}>Print / PDF</button>
         </div>
       </div>
@@ -197,15 +335,26 @@ function ResultView({
           applicable state median ({fmt(result.stateMedian)}) — automatic pass under 11 U.S.C. §
           707(b)(7). Form 122A-2 not required.
         </div>
+
+        <ReviewerSignoffSection
+          reviewerName={reviewerName}
+          reviewerNotes={reviewerNotes}
+          reasons={reviewerSignoffReasons}
+          onReviewerNameChange={setReviewerName}
+          required={reviewerRequiredForExport}
+          onReviewerNotesChange={setReviewerNotes}
+        />
+        <AuditPanel result={result} />
         <div className="result-actions">
           <button className="reset-btn" onClick={onReset}>← New Calculation</button>
+          <button className="print-btn" onClick={exportAuditPacket} disabled={reviewerRequiredForExport && !reviewerName.trim()} title={reviewerRequiredForExport && !reviewerName.trim() ? "Reviewer name is required before export for warning/assumption/borderline results" : undefined}>Export Audit JSON</button>
           <button className="print-btn" onClick={() => window.print()}>Print / PDF</button>
         </div>
       </div>
     );
   }
 
-  const r = result as Extract<MeansTestResult, { outcome: "PASS" | "FAIL" | "BORDERLINE" }>;
+  const r = result as Extract<MeansTestResultV2, { outcome: "PASS" | "FAIL" | "BORDERLINE" }>;
   const verdictClass =
     r.outcome === "PASS" ? "verdict-pass" : r.outcome === "FAIL" ? "verdict-fail" : "verdict-border";
   const verdictLabel =
@@ -264,7 +413,7 @@ function ResultView({
             </tr>
           </thead>
           <tbody>
-            {r.deductions.map((d, i) => (
+            {r.deductions.map((d: (typeof r.deductions)[number], i: number) => (
               <tr key={i}>
                 <td>
                   {d.label}
@@ -316,13 +465,26 @@ function ResultView({
       </div>
 
       <div className="result-note">
-        <strong>Data effective:</strong> {PERIOD_LABEL}. Housing allowances are IRS Local Standards
-        (state average; MSA-specific where applicable). Run{" "}
-        <code>npm run update-data</code> to refresh from DOJ/UST.
+        <strong>Data effective:</strong> housing / median / thresholds {EFFECTIVE_DATE}; transportation 2026-04-01. This UI is only suitable for cases filed on or
+        after {MIN_SUPPORTED_FILING_DATE}. County omissions and zeroed actual-expense entries can change
+        the legal result, so review the audit warnings and assumptions before relying on the output.
       </div>
+
+      
+        <ReviewerSignoffSection
+          reviewerName={reviewerName}
+          reviewerNotes={reviewerNotes}
+          reasons={reviewerSignoffReasons}
+          onReviewerNameChange={setReviewerName}
+          required={reviewerRequiredForExport}
+          onReviewerNotesChange={setReviewerNotes}
+        />
+
+      <AuditPanel result={result} />
 
       <div className="result-actions">
         <button className="reset-btn" onClick={onReset}>← New Calculation</button>
+        <button className="print-btn" onClick={exportAuditPacket} disabled={reviewerRequiredForExport && !reviewerName.trim()} title={reviewerRequiredForExport && !reviewerName.trim() ? "Reviewer name is required before export for warning/assumption/borderline results" : undefined}>Export Audit JSON</button>
         <button className="print-btn" onClick={() => window.print()}>Print / PDF</button>
       </div>
     </div>
@@ -343,8 +505,10 @@ export default function App() {
     return DEFAULT_INPUT;
   });
 
-  const [result, setResult] = useState<MeansTestResult | null>(null);
+  const [result, setResult] = useState<MeansTestResultV2 | null>(null);
   const [errors, setErrors] = useState<Partial<Record<string, string>>>({});
+  const [reviewAcknowledged, setReviewAcknowledged] = useState(false);
+  const filingDateSupport = getEmbeddedDatasetSupport(input.filingDate);
 
   // Persist to session storage whenever input changes
   useEffect(() => {
@@ -357,6 +521,9 @@ export default function App() {
 
   const set = useCallback(<K extends keyof MeansTestInput>(key: K, val: MeansTestInput[K]) => {
     setInput(prev => ({ ...prev, [key]: val }));
+    if (key === "state" || key === "county" || key === "householdSize") {
+      setReviewAcknowledged(false);
+    }
     setErrors(prev => ({ ...prev, [key]: undefined }));
   }, []);
 
@@ -375,9 +542,16 @@ export default function App() {
   const validate = (): boolean => {
     const errs: Partial<Record<string, string>> = {};
     if (!input.state) errs.state = "State is required";
+    if (!input.filingDate) errs.filingDate = "Filing date is required";
+    if (!filingDateSupport.supported) {
+      errs.filingDate = filingDateSupport.reason ?? `This build only supports cases filed on or after ${MIN_SUPPORTED_FILING_DATE}`;
+    }
     if (input.householdSize < 1) errs.householdSize = "Must be at least 1";
     if (input.totalUnsecuredDebt < 0) errs.totalUnsecuredDebt = "Cannot be negative";
     if (input.monthlyMortgageRent < 0) errs.monthlyMortgageRent = "Cannot be negative";
+    if (housingPreview && housingPreview.matched !== "county_exact" && !reviewAcknowledged) {
+      errs.reviewAcknowledged = "Review acknowledgment is required when housing is not using an exact county row";
+    }
     if (Object.keys(errs).length > 0) {
       setErrors(errs);
       return false;
@@ -388,7 +562,7 @@ export default function App() {
   const calculate = () => {
     if (!validate()) return;
     try {
-      setResult(runMeansTest(input));
+      setResult(runMeansTestV2(normalizeLegacyInput(input)));
     } catch (e) {
       setErrors({ state: (e as Error).message });
     }
@@ -398,6 +572,7 @@ export default function App() {
     setInput(DEFAULT_INPUT);
     setResult(null);
     setErrors({});
+    setReviewAcknowledged(false);
     sessionStorage.removeItem(SESSION_KEY);
   };
 
@@ -406,7 +581,7 @@ export default function App() {
   // Housing allowance preview (shows as user fills in state/county/household)
   const housingPreview =
     input.state
-      ? getHousingAllowance(input.state, input.county, input.householdSize)
+      ? getHousingAllowanceDetails(input.state, input.county, input.householdSize)
       : null;
 
   return (
@@ -436,10 +611,10 @@ export default function App() {
             {/* ── Case Information ─────────────────────────────────────── */}
             <Section title="Case Information">
               <div className="grid-2">
-                <Field label="Filing Date">
+                <Field label="Filing Date" error={errors.filingDate}>
                   <input
                     type="date"
-                    className="text-input"
+                    className={`text-input${errors.filingDate ? " error" : ""}`}
                     value={input.filingDate}
                     onChange={e => set("filingDate", e.target.value)}
                   />
@@ -482,6 +657,12 @@ export default function App() {
               </div>
 
               {/* Housing standard preview */}
+
+              {!filingDateSupport.supported && (
+                <div className="housing-hint-warning">
+                  Unsupported filing date: {filingDateSupport.reason}
+                </div>
+              )}
               {housingPreview && (
                 <div className="housing-hint">
                   <div>
@@ -495,8 +676,45 @@ export default function App() {
                         {fmt(housingPreview.utility + housingPreview.mortgageCap)}/mo total cap
                       </span>
                     </div>
+                    <div className="housing-hint-meta">
+                      Housing source:{" "}
+                      <strong>
+                        {housingPreview.matched === "county_exact"
+                          ? `Exact county row (${housingPreview.matchedName})`
+                          : housingPreview.matched === "msa"
+                          ? `Grouped ${housingPreview.matchedName} override`
+                          : housingPreview.matched === "state_default"
+                          ? "Statewide default"
+                          : "Emergency fallback"}
+                      </strong>
+                    </div>
+                    {housingPreview.matched !== "county_exact" && (
+                      <div className="housing-hint-warning">
+                        Review required: this preview is not using an exact county row from the U.S. Trustee chart.
+                      </div>
+                    )}
                   </div>
                 </div>
+              )}
+
+              {housingPreview && housingPreview.matched !== "county_exact" && (
+                <Field
+                  label="Reviewer acknowledgment"
+                  error={errors.reviewAcknowledged}
+                  note="Required whenever housing uses grouped MSA, statewide default, or fallback data"
+                >
+                  <label className="check-label">
+                    <input
+                      type="checkbox"
+                      checked={reviewAcknowledged}
+                      onChange={e => {
+                        setReviewAcknowledged(e.target.checked);
+                        setErrors(prev => ({ ...prev, reviewAcknowledged: undefined }));
+                      }}
+                    />
+                    I understand this housing amount must be verified against the current official county chart before relying on the result.
+                  </label>
+                </Field>
               )}
 
               <div className="checkbox-row">
@@ -622,11 +840,31 @@ export default function App() {
                     </select>
                   </Field>
                 )}
+                {input.numVehicles > 1 && (
+                  <Field label="Second Vehicle Loan / Lease">
+                    <select
+                      className="text-input"
+                      value={input.hasSecondCarPayment ? "yes" : "no"}
+                      onChange={e => set("hasSecondCarPayment", e.target.value === "yes")}
+                    >
+                      <option value="no">No second vehicle loan or lease</option>
+                      <option value="yes">Has second vehicle loan or lease</option>
+                    </select>
+                  </Field>
+                )}
                 {input.numVehicles > 0 && input.hasCarPayment && (
-                  <Field label="Monthly Car Payment" note="Actual loan or lease amount">
+                  <Field label="Monthly Car Payment — Vehicle 1" note="Actual first vehicle loan or lease amount">
                     <NumInput
                       value={input.monthlyCarPayment}
                       onChange={v => set("monthlyCarPayment", v)}
+                    />
+                  </Field>
+                )}
+                {input.numVehicles > 1 && input.hasSecondCarPayment && (
+                  <Field label="Monthly Car Payment — Vehicle 2" note="Actual second vehicle loan or lease amount">
+                    <NumInput
+                      value={input.monthlySecondCarPayment ?? 0}
+                      onChange={v => set("monthlySecondCarPayment", v)}
                     />
                   </Field>
                 )}
@@ -808,7 +1046,7 @@ export default function App() {
 
             <div className="form-footer">
               <span className="form-footer-note">
-                Data effective: {PERIOD_LABEL}
+                Housing / median / thresholds effective: {EFFECTIVE_DATE} · Transportation effective: 2026-04-01 · Supported filing dates: {MIN_SUPPORTED_FILING_DATE} and later
               </span>
               <button type="submit" className="calc-btn" disabled={!input.state}>
                 Run Means Test →
@@ -819,8 +1057,14 @@ export default function App() {
       </main>
 
       <footer className="footer">
-        <p>For informational purposes only · Not legal advice · Verify results with a licensed bankruptcy attorney</p>
-        <p>Data source: United States Trustee Program · justice.gov/ust/means-testing · Effective {EFFECTIVE_DATE}</p>
+        <p>
+          Bankruptcy means-test outcomes are legally sensitive. This app now surfaces dataset provenance,
+          warnings, and assumptions, but it is still not a substitute for attorney review.
+        </p>
+        <p>
+          Supported scope: cases filed on or after {MIN_SUPPORTED_FILING_DATE} because the embedded transportation dataset begins on 2026-04-01 even though several other embedded datasets begin on 2025-11-01.
+        </p>
+        <p>Data source: United States Trustee Program · justice.gov/ust/means-testing · Housing / median / thresholds effective {EFFECTIVE_DATE}; transportation effective 2026-04-01.</p>
       </footer>
     </div>
   );

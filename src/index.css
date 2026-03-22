@@ -163,6 +163,8 @@ body {
 }
 .housing-hint-label { color: var(--ink-3); font-family: var(--mono); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
 .housing-hint-val { font-family: var(--mono); color: var(--accent); font-weight: 500; }
+.housing-hint-meta { margin-top: 0.35rem; font-size: 0.78rem; color: var(--ink-3); }
+.housing-hint-warning { margin-top: 0.35rem; font-size: 0.78rem; color: var(--fail); }
 
 /* ── Form Footer ────────────────────────────────────────────────────────── */
 .form-footer { display: flex; justify-content: space-between; align-items: center; }
@@ -261,6 +263,74 @@ tfoot .total-row td { font-weight: 600; background: #faf9f7; border-top: 2px sol
 }
 .result-note code { font-family: var(--mono); font-size: 0.8rem; }
 
+.audit-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.audit-section {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  padding: 1rem 1.25rem;
+}
+
+.audit-title {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-3);
+  margin: 0 0 0.75rem;
+}
+
+.audit-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.75rem;
+}
+
+.audit-card {
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  padding: 0.75rem;
+  background: #faf9f7;
+}
+
+.audit-card-label {
+  font-family: var(--mono);
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-3);
+}
+
+.audit-card-date {
+  font-family: var(--serif);
+  font-size: 1.15rem;
+  color: var(--ink);
+}
+
+.audit-card-sub {
+  font-size: 0.78rem;
+  color: var(--ink-3);
+}
+
+.audit-list {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 0.88rem;
+}
+
+.audit-list-warn {
+  color: var(--fail);
+}
+
+.audit-list-note {
+  color: var(--ink-2);
+}
+
 .reset-btn {
   background: none; border: 1px solid var(--rule);
   padding: 0.6rem 1.25rem; border-radius: 4px; cursor: pointer;
@@ -286,6 +356,7 @@ tfoot .total-row td { font-weight: 600; background: #faf9f7; border-top: 2px sol
 @media (max-width: 640px) {
   .grid-2, .grid-3 { grid-template-columns: 1fr; }
   .result-grid { grid-template-columns: 1fr 1fr; }
+  .audit-grid { grid-template-columns: 1fr; }
   .threshold-grid { grid-template-columns: 1fr; }
   .income-row { flex-direction: column; }
   .income-row .input-wrap { flex: unset; width: 100%; }

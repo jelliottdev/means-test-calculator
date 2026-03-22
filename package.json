@@ -8,6 +8,10 @@
     "build": "tsc -p tsconfig.app.json && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
+    "test": "npx tsx --test test/artifacts.test.ts test/florida.coverage.test.ts test/meansTest.engines.test.ts",
+    "generate:artifacts": "npx tsx scripts/generate-artifacts.ts",
+    "validate:artifacts": "npx tsx scripts/validate-artifacts.ts",
+    "check:publication": "npx tsx scripts/check-publication-readiness.ts",
     "update-data": "npx tsx scripts/fetch-data.ts",
     "check-data": "npx tsx scripts/fetch-data.ts --check"
   },
@@ -27,6 +31,7 @@
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.4.0",
     "tailwindcss": "^4.2.2",
+    "tsx": "^4.20.6",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.57.0",
     "vite": "^8.0.1"

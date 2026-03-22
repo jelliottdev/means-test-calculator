@@ -1,5 +1,11 @@
+import { countyNamesMatch } from "../../lib/countyName";
 import type { MeansTestDatasetBundle } from "../../datasets/types";
 import type { CalculationAudit, LineItemV2, MeansTestInputV2, MeansTestResultV2 } from "./types";
+
+function getOwnershipCapForVehicle(vehicleIndex: number, ownership1Car: number, ownership2CarTotal: number): number {
+  if (vehicleIndex <= 0) return ownership1Car;
+  return Math.max(0, ownership2CarTotal - ownership1Car);
+}
 
 function buildAudit(input: MeansTestInputV2, bundle: MeansTestDatasetBundle, assumptions: string[], warnings: string[]): CalculationAudit {
   return {
@@ -10,30 +16,45 @@ function buildAudit(input: MeansTestInputV2, bundle: MeansTestDatasetBundle, ass
         effectiveDate: bundle.median_income.effective_date,
         periodLabel: bundle.median_income.coverage ?? bundle.median_income.effective_date,
         sourceUrl: bundle.median_income.source_url,
+        sourceHash: bundle.median_income.source_hash,
+        fetchedAt: bundle.median_income.fetched_at,
+        notes: bundle.median_income.warnings,
       },
       national_standards: {
         key: bundle.national_standards.kind,
         effectiveDate: bundle.national_standards.effective_date,
         periodLabel: bundle.national_standards.coverage ?? bundle.national_standards.effective_date,
         sourceUrl: bundle.national_standards.source_url,
+        sourceHash: bundle.national_standards.source_hash,
+        fetchedAt: bundle.national_standards.fetched_at,
+        notes: bundle.national_standards.warnings,
       },
       transportation: {
         key: bundle.transportation.kind,
         effectiveDate: bundle.transportation.effective_date,
         periodLabel: bundle.transportation.coverage ?? bundle.transportation.effective_date,
         sourceUrl: bundle.transportation.source_url,
+        sourceHash: bundle.transportation.source_hash,
+        fetchedAt: bundle.transportation.fetched_at,
+        notes: bundle.transportation.warnings,
       },
       housing: {
         key: bundle.housing.kind,
         effectiveDate: bundle.housing.effective_date,
         periodLabel: bundle.housing.coverage ?? bundle.housing.effective_date,
         sourceUrl: bundle.housing.source_url,
+        sourceHash: bundle.housing.source_hash,
+        fetchedAt: bundle.housing.fetched_at,
+        notes: bundle.housing.warnings,
       },
       thresholds: {
         key: bundle.thresholds.kind,
         effectiveDate: bundle.thresholds.effective_date,
         periodLabel: bundle.thresholds.coverage ?? bundle.thresholds.effective_date,
         sourceUrl: bundle.thresholds.source_url,
+        sourceHash: bundle.thresholds.source_hash,
+        fetchedAt: bundle.thresholds.fetched_at,
+        notes: bundle.thresholds.warnings,
       },
     },
     assumptions,
@@ -48,10 +69,14 @@ function buildAudit(input: MeansTestInputV2, bundle: MeansTestDatasetBundle, ass
 
 function getHousingAllowanceFromBundle(bundle: MeansTestDatasetBundle, state: string, county: string, householdSize: number) {
   const idx = Math.min(householdSize, 5) - 1;
-  const normalizedCounty = county.trim().toLowerCase();
+  for (const countyOverride of bundle.housing.county_overrides ?? []) {
+    if (countyOverride.state === state && countyNamesMatch(countyOverride.county, county)) {
+      return { utility: countyOverride.utility[idx], mortgageCap: countyOverride.mortgage[idx], matched: `county:${countyOverride.county}` };
+    }
+  }
   for (const msa of bundle.housing.msa_overrides ?? []) {
     const msaCounties = msa.counties[state];
-    if (msaCounties?.some((c) => c.toLowerCase() === normalizedCounty)) {
+    if (msaCounties?.some((c) => countyNamesMatch(c, county))) {
       return { utility: msa.utility[idx], mortgageCap: msa.mortgage[idx], matched: `msa:${msa.name}` };
     }
   }
@@ -68,7 +93,7 @@ function getTransportOperatingCostFromBundle(bundle: MeansTestDatasetBundle, sta
     if (!region.states.includes(state)) continue;
     for (const msa of Object.values(region.msas)) {
       const counties = msa.counties[state];
-      if (counties?.some((c) => c.toLowerCase() === county.toLowerCase())) {
+      if (counties?.some((c) => countyNamesMatch(c, county))) {
         return msa.costs[idx];
       }
     }
@@ -143,6 +168,9 @@ export function runMeansTestFromBundle(input: MeansTestInputV2, bundle: MeansTes
   deductions.push({ label: "Out-of-Pocket Healthcare (National Standard)", amount: totalHC, source: "national", formLine: "7", datasetKey: "national_standards" });
 
   const housing = getHousingAllowanceFromBundle(bundle, input.state, input.county, input.householdSize);
+  if (housing.matched.startsWith("msa:")) warnings.push(`Housing uses grouped ${housing.matched.slice(4)} override for ${input.county || input.state}; verify the exact county row on the current U.S. Trustee housing chart.`);
+  if (housing.matched === "state_default") warnings.push("Housing uses a statewide default instead of an exact county row; verify the current U.S. Trustee county chart before filing.");
+  if (housing.matched === "fallback") warnings.push("Housing used the absolute fallback allowance because no state dataset matched; do not rely on this result without correcting the data.");
   deductions.push({ label: "Housing: Non-Mortgage Expenses (Local Standard)", amount: housing.utility, source: "local", formLine: "8a", datasetKey: "housing", note: housing.matched });
   const actualMortgage = input.monthlyMortgageRent;
   const mortgageDeduction = actualMortgage > 0 ? Math.min(housing.mortgageCap, actualMortgage) : housing.mortgageCap;
@@ -157,7 +185,11 @@ export function runMeansTestFromBundle(input: MeansTestInputV2, bundle: MeansTes
     deductions.push({ label: `Vehicle Operating Costs (${numVehicles} car${numVehicles > 1 ? "s" : ""}, Local Standard)`, amount: operatingCost, source: "local", formLine: "12", datasetKey: "transportation" });
     input.vehicles.slice(0, 2).forEach((vehicle, idx) => {
       if (!vehicle.hasLoanOrLease || vehicle.monthlyPayment <= 0) return;
-      const ownershipStd = idx === 0 ? bundle.transportation.ownership_1_car : bundle.transportation.ownership_1_car;
+      const ownershipStd = getOwnershipCapForVehicle(
+        idx,
+        bundle.transportation.ownership_1_car,
+        bundle.transportation.ownership_2_car
+      );
       const ownershipDeduction = Math.min(ownershipStd, vehicle.monthlyPayment);
       deductions.push({ label: `Vehicle Ownership/Lease (${vehicle.id})`, amount: ownershipDeduction, source: "local", formLine: "13a", datasetKey: "transportation" });
     });
