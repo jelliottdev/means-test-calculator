@@ -1,0 +1,35 @@
+{
+  "filingDate": "2026-03-21",
+  "state": "GA",
+  "county": "Fulton",
+  "householdSize": 2,
+  "isJointFiling": true,
+  "incomeSources": [
+    { "type": "Wages/Salary", "monthlyAmount": 6200, "includedInCmi": true },
+    { "type": "Rental Income", "monthlyAmount": 400, "includedInCmi": true }
+  ],
+  "primaryOver65": false,
+  "spouseOver65": false,
+  "vehicles": [
+    { "id": "vehicle-1", "hasLoanOrLease": true, "monthlyPayment": 480, "operatingEligible": true },
+    { "id": "vehicle-2", "hasLoanOrLease": false, "monthlyPayment": 0, "operatingEligible": true }
+  ],
+  "monthlyMortgageRent": 1850,
+  "monthlyTaxes": 1400,
+  "monthlyInvoluntaryDeductions": 0,
+  "monthlyTermLifeInsurance": 45,
+  "monthlyEducationEmployment": 0,
+  "monthlyTelecom": 160,
+  "monthlyHealthInsurance": 550,
+  "monthlyChildcare": 0,
+  "monthlyChronicHealthcare": 0,
+  "monthlyDependentChildEducation": 0,
+  "monthlySpecialDietFood": 0,
+  "monthlySupportObligations": 0,
+  "monthlyPriorityDebts": 0,
+  "monthlyOtherSecuredDebt": 0,
+  "totalUnsecuredDebt": 38000,
+  "debtType": "consumer",
+  "isDisabledVeteran": false,
+  "isActiveReservist": false
+}
