@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { STATE_NAMES, EFFECTIVE_DATE, getHousingAllowanceDetails } from "./data/meansTestData";
 import { EMBEDDED_MIN_SUPPORTED_FILING_DATE, getEmbeddedDatasetSupport } from "./datasets/embedded";
-import { buildAuditPacket, downloadAuditPacket, getReviewerSignoffReasons, isReviewerSignoffRequired } from "./auditPacket";
+import { buildAuditPacket, downloadAuditPacket, getAuditReviewStatus, getReviewerSignoffReasons, isReviewerSignoffRequired, normalizeAuditReview } from "./auditPacket";
 import { type MeansTestInput } from "./engine/meansTest";
 import { normalizeLegacyInput } from "./engine/v2/normalize";
 import { runMeansTestV2 } from "./engine/v2/meansTestV2";
@@ -197,6 +197,8 @@ function ReviewerSignoffSection({
   reviewerNotes,
   reasons,
   required,
+  reviewBlockers,
+  readyForExport,
   onReviewerNameChange,
   onReviewerNotesChange,
 }: {
@@ -204,19 +206,31 @@ function ReviewerSignoffSection({
   reviewerNotes: string;
   reasons?: string[];
   required?: boolean;
+  reviewBlockers?: string[];
+  readyForExport?: boolean;
   onReviewerNameChange: (value: string) => void;
   onReviewerNotesChange: (value: string) => void;
 }) {
   return (
     <div className="section">
-      <h3 className="section-title">Reviewer Signoff (optional)</h3>
+      <h3 className="section-title">Reviewer Signoff {required ? "(required for export)" : "(optional)"}</h3>
       <div className="section-body">
         {required && (
           <>
-            <p className="section-note">Reviewer name is required before exporting this result.</p>
+            <p className="section-note">Reviewer signoff is required before exporting this result.</p>
             <ul className="audit-list audit-list-note">
               {(reasons ?? []).map((reason, idx) => <li key={idx}>{reason}</li>)}
             </ul>
+            {readyForExport ? (
+              <p className="section-note">Export status: ready. Required reviewer fields are complete.</p>
+            ) : (
+              <>
+                <p className="section-note">Export status: blocked until required review fields are completed.</p>
+                <ul className="audit-list audit-list-warn">
+                  {(reviewBlockers ?? []).map((blocker, idx) => <li key={idx}>{blocker}</li>)}
+                </ul>
+              </>
+            )}
           </>
         )}
         <div className="grid-2">
@@ -260,18 +274,22 @@ function ResultView({
   const [reviewerNotes, setReviewerNotes] = useState("");
   const reviewerRequiredForExport = isReviewerSignoffRequired(result);
   const reviewerSignoffReasons = getReviewerSignoffReasons(result);
-  const exportAuditPacket = () => downloadAuditPacket(buildAuditPacket(
-    input,
-    result,
-    new Date().toISOString(),
-    reviewerName || reviewerNotes
-      ? {
-          reviewerName: reviewerName || undefined,
-          reviewerNotes: reviewerNotes || undefined,
-          reviewedAt: new Date().toISOString(),
-        }
-      : undefined,
-  ));
+  const reviewDraft = normalizeAuditReview(reviewerName || reviewerNotes ? { reviewerName, reviewerNotes } : undefined);
+  const reviewStatus = getAuditReviewStatus(result, reviewDraft);
+  const exportAuditPacket = () => {
+    const reviewedAt = new Date().toISOString();
+    downloadAuditPacket(buildAuditPacket(
+      input,
+      result,
+      reviewedAt,
+      reviewDraft
+        ? {
+            ...reviewDraft,
+            reviewedAt,
+          }
+        : undefined,
+    ));
+  };
 
   if (result.outcome === "EXEMPT") {
     return (
@@ -288,6 +306,8 @@ function ResultView({
           reviewerName={reviewerName}
           reviewerNotes={reviewerNotes}
           reasons={reviewerSignoffReasons}
+          reviewBlockers={reviewStatus.blockers}
+          readyForExport={reviewStatus.readyForExport}
           onReviewerNameChange={setReviewerName}
           required={reviewerRequiredForExport}
           onReviewerNotesChange={setReviewerNotes}
@@ -295,7 +315,7 @@ function ResultView({
         <AuditPanel result={result} />
         <div className="result-actions">
           <button className="reset-btn" onClick={onReset}>← New Calculation</button>
-          <button className="print-btn" onClick={exportAuditPacket} disabled={reviewerRequiredForExport && !reviewerName.trim()} title={reviewerRequiredForExport && !reviewerName.trim() ? "Reviewer name is required before export for warning/assumption/borderline results" : undefined}>Export Audit JSON</button>
+          <button className="print-btn" onClick={exportAuditPacket} disabled={!reviewStatus.readyForExport} title={!reviewStatus.readyForExport ? reviewStatus.blockers.join(" ") : undefined}>Export Audit JSON</button>
           <button className="print-btn" onClick={() => window.print()}>Print / PDF</button>
         </div>
       </div>
@@ -340,6 +360,8 @@ function ResultView({
           reviewerName={reviewerName}
           reviewerNotes={reviewerNotes}
           reasons={reviewerSignoffReasons}
+          reviewBlockers={reviewStatus.blockers}
+          readyForExport={reviewStatus.readyForExport}
           onReviewerNameChange={setReviewerName}
           required={reviewerRequiredForExport}
           onReviewerNotesChange={setReviewerNotes}
@@ -347,7 +369,7 @@ function ResultView({
         <AuditPanel result={result} />
         <div className="result-actions">
           <button className="reset-btn" onClick={onReset}>← New Calculation</button>
-          <button className="print-btn" onClick={exportAuditPacket} disabled={reviewerRequiredForExport && !reviewerName.trim()} title={reviewerRequiredForExport && !reviewerName.trim() ? "Reviewer name is required before export for warning/assumption/borderline results" : undefined}>Export Audit JSON</button>
+          <button className="print-btn" onClick={exportAuditPacket} disabled={!reviewStatus.readyForExport} title={!reviewStatus.readyForExport ? reviewStatus.blockers.join(" ") : undefined}>Export Audit JSON</button>
           <button className="print-btn" onClick={() => window.print()}>Print / PDF</button>
         </div>
       </div>
@@ -429,7 +451,7 @@ function ResultView({
           </tbody>
           <tfoot>
             <tr className="total-row">
-              <td colSpan={3}>Total Monthly Deductions (Line 34)</td>
+              <td colSpan={3}>Total Deductions (Line 38)</td>
               <td className="right mono">{fmt(r.totalDeductions)}</td>
             </tr>
           </tfoot>
@@ -475,6 +497,8 @@ function ResultView({
           reviewerName={reviewerName}
           reviewerNotes={reviewerNotes}
           reasons={reviewerSignoffReasons}
+          reviewBlockers={reviewStatus.blockers}
+          readyForExport={reviewStatus.readyForExport}
           onReviewerNameChange={setReviewerName}
           required={reviewerRequiredForExport}
           onReviewerNotesChange={setReviewerNotes}
@@ -484,7 +508,7 @@ function ResultView({
 
       <div className="result-actions">
         <button className="reset-btn" onClick={onReset}>← New Calculation</button>
-        <button className="print-btn" onClick={exportAuditPacket} disabled={reviewerRequiredForExport && !reviewerName.trim()} title={reviewerRequiredForExport && !reviewerName.trim() ? "Reviewer name is required before export for warning/assumption/borderline results" : undefined}>Export Audit JSON</button>
+        <button className="print-btn" onClick={exportAuditPacket} disabled={!reviewStatus.readyForExport} title={!reviewStatus.readyForExport ? reviewStatus.blockers.join(" ") : undefined}>Export Audit JSON</button>
         <button className="print-btn" onClick={() => window.print()}>Print / PDF</button>
       </div>
     </div>
@@ -853,7 +877,7 @@ export default function App() {
                   </Field>
                 )}
                 {input.numVehicles > 0 && input.hasCarPayment && (
-                  <Field label="Monthly Car Payment — Vehicle 1" note="Actual first vehicle loan or lease amount">
+                  <Field label="Monthly Car Payment — Vehicle 1" note="Used as the line 13b average monthly debt payment for Vehicle 1">
                     <NumInput
                       value={input.monthlyCarPayment}
                       onChange={v => set("monthlyCarPayment", v)}
@@ -861,7 +885,7 @@ export default function App() {
                   </Field>
                 )}
                 {input.numVehicles > 1 && input.hasSecondCarPayment && (
-                  <Field label="Monthly Car Payment — Vehicle 2" note="Actual second vehicle loan or lease amount">
+                  <Field label="Monthly Car Payment — Vehicle 2" note="Used as the line 13e average monthly debt payment for Vehicle 2">
                     <NumInput
                       value={input.monthlySecondCarPayment ?? 0}
                       onChange={v => set("monthlySecondCarPayment", v)}
@@ -913,7 +937,7 @@ export default function App() {
               </div>
 
               <h4 style={{ fontFamily: "var(--mono)", fontSize: "0.72rem", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--ink-3)", margin: "0.75rem 0 0.25rem" }}>
-                Insurance &amp; Benefits (Lines 18–22, 25a)
+                Insurance &amp; Benefits (Lines 18, 22–23, 25)
               </h4>
               <div className="grid-2">
                 <Field label="Term Life Insurance Premiums" note="For debtor's dependents only (Line 18)">
@@ -922,45 +946,54 @@ export default function App() {
                     onChange={v => set("monthlyTermLifeInsurance", v)}
                   />
                 </Field>
-                <Field label="Health Insurance Premiums" note="Premiums paid, not reimbursed (Line 25a)">
+                <Field label="Health / Disability Insurance + HSA" note="Enter the total actually spent for line 25 items (Line 25)">
                   <NumInput
                     value={input.monthlyHealthInsurance}
                     onChange={v => set("monthlyHealthInsurance", v)}
                   />
                 </Field>
                 <Field
-                  label="Telecommunications"
-                  note="Phone, internet, fax — capped at $195/mo IRS standard (Line 22)"
+                  label="Optional Telephones and Telephone Services"
+                  note="Only optional services; do not include basic home phone, internet, or basic cell service (Line 23)"
                 >
                   <NumInput value={input.monthlyTelecom} onChange={v => set("monthlyTelecom", v)} />
                 </Field>
               </div>
 
               <h4 style={{ fontFamily: "var(--mono)", fontSize: "0.72rem", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--ink-3)", margin: "0.75rem 0 0.25rem" }}>
-                Education &amp; Care (Lines 19–20, 25b)
+                Court Orders, Education &amp; Care (Lines 19–21)
               </h4>
               <div className="grid-2">
                 <Field
-                  label="Employment Education"
-                  note="Tuition/fees legally required for current job (Line 19)"
+                  label="Court-Ordered Payments"
+                  note="Current monthly payments required by a court or administrative order (Line 19)"
                 >
                   <NumInput
-                    value={input.monthlyEducationEmployment}
-                    onChange={v => set("monthlyEducationEmployment", v)}
+                    value={input.monthlySupportObligations}
+                    onChange={v => set("monthlySupportObligations", v)}
                   />
                 </Field>
-                <Field label="Childcare" note="Actual monthly childcare costs (Line 20)">
-                  <NumInput value={input.monthlyChildcare} onChange={v => set("monthlyChildcare", v)} />
+                <Field label="Education" note="Only education allowed by Official Form 122A-2 line 20">
+                  <NumInput value={input.monthlyEducationEmployment} onChange={v => set("monthlyEducationEmployment", v)} />
                 </Field>
               </div>
 
               <h4 style={{ fontFamily: "var(--mono)", fontSize: "0.72rem", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--ink-3)", margin: "0.75rem 0 0.25rem" }}>
-                Special Circumstances (Lines 21, 25c, 25d)
+                Childcare & Special Circumstances (Lines 21–22, 29–30)
               </h4>
               <div className="grid-2">
                 <Field
-                  label="Additional Healthcare — Chronic Illness / Disability"
-                  note="Ongoing treatment costs above the IRS national standard (Line 21)"
+                  label="Childcare"
+                  note="Actual monthly childcare costs (Line 21)"
+                >
+                  <NumInput
+                    value={input.monthlyChildcare}
+                    onChange={v => set("monthlyChildcare", v)}
+                  />
+                </Field>
+                <Field
+                  label="Additional Healthcare — Excluding Insurance Costs"
+                  note="Only the amount above the IRS out-of-pocket standard on line 7 (Line 22)"
                 >
                   <NumInput
                     value={input.monthlyChronicHealthcare}
@@ -968,8 +1001,8 @@ export default function App() {
                   />
                 </Field>
                 <Field
-                  label="Dependent Children's Education (K-12)"
-                  note="Legally required tuition/fees for children under 18 (Line 25c)"
+                  label="Education Expenses for Dependent Children Under 18"
+                  note="Verify the current per-child cap and documentation requirements (Line 29)"
                 >
                   <NumInput
                     value={input.monthlyDependentChildEducation}
@@ -977,8 +1010,8 @@ export default function App() {
                   />
                 </Field>
                 <Field
-                  label="Special Diet / Medical Food"
-                  note="Additional food costs above national standard for disability or chronic illness (Line 25d)"
+                  label="Additional Food and Clothing Expense"
+                  note="Subject to the line 30 5% cap and documentation requirements"
                 >
                   <NumInput
                     value={input.monthlySpecialDietFood}
@@ -988,21 +1021,12 @@ export default function App() {
               </div>
 
               <h4 style={{ fontFamily: "var(--mono)", fontSize: "0.72rem", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--ink-3)", margin: "0.75rem 0 0.25rem" }}>
-                Court Orders &amp; Priority Debts (Lines 24–26, 25e)
+                Priority Claims & Chapter 13 Admin (Lines 35–36)
               </h4>
               <div className="grid-2">
                 <Field
-                  label="Domestic Support Obligations"
-                  note="Court-ordered support paid (Line 25e)"
-                >
-                  <NumInput
-                    value={input.monthlySupportObligations}
-                    onChange={v => set("monthlySupportObligations", v)}
-                  />
-                </Field>
-                <Field
-                  label="Priority Debt Payments"
-                  note="Back taxes, support arrears (Lines 24–26) — also triggers 10% Ch.13 admin deduction"
+                  label="Past-Due Priority Claims"
+                  note="Past-due priority claims only; also drives the line 36 Chapter 13 admin deduction"
                 >
                   <NumInput
                     value={input.monthlyPriorityDebts}

@@ -2,8 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { runMeansTest, type MeansTestInput } from "../src/engine/meansTest";
 import { runMeansTestV2 } from "../src/engine/v2/meansTestV2";
-import { EMBEDDED_MIN_SUPPORTED_FILING_DATE, getEmbeddedDatasetBundle } from "../src/datasets/embedded";
-import { buildAuditPacket, getReviewerSignoffReasons, isReviewerSignoffRequired } from "../src/auditPacket";
+import { EMBEDDED_MIN_SUPPORTED_FILING_DATE, getEmbeddedDatasetBundle, getEmbeddedDatasetSupport } from "../src/datasets/embedded";
+import { buildAuditPacket, getAuditReviewStatus, getReviewerSignoffReasons, isReviewerSignoffRequired, normalizeAuditReview } from "../src/auditPacket";
 import { runMeansTestFromBundle } from "../src/engine/v2/meansTestFromBundle";
 import type { MeansTestDatasetBundle } from "../src/datasets/types";
 import type { MeansTestInputV2 } from "../src/engine/v2/types";
@@ -144,12 +144,99 @@ test("legacy engine applies separate ownership caps for vehicle 1 and vehicle 2"
   assert.notEqual(result.outcome, "EXEMPT");
   assert.notEqual(result.outcome, "BELOW_MEDIAN");
 
-  const ownershipLines = result.deductions.filter((line) => line.formLine === "13a");
+  const ownershipLines = result.deductions.filter((line) => line.formLine === "13c" || line.formLine === "13f");
   assert.equal(ownershipLines.length, 2);
   assert.deepEqual(
     ownershipLines.map((line) => line.amount),
-    [662, 662]
+    [0, 0]
   );
+});
+
+
+
+test("vehicle ownership deductions use net line 13c/13f math from the reviewed form", () => {
+  const legacy = runMeansTest(createLegacyInput());
+  assert.notEqual(legacy.outcome, "EXEMPT");
+  assert.notEqual(legacy.outcome, "BELOW_MEDIAN");
+  const legacyByLine = new Map(legacy.deductions.map((line) => [line.formLine, line]));
+  assert.equal(legacyByLine.get("13c")?.amount, 0);
+  assert.equal(legacyByLine.get("13f")?.amount, 0);
+
+  const v2 = runMeansTestV2(createV2Input({ county: "Orange", state: "CA" }));
+  const v2ByLine = new Map(v2.deductions.map((line) => [line.formLine, line]));
+  assert.equal(v2ByLine.get("13c")?.amount, 0);
+  assert.equal(v2ByLine.get("13f")?.amount, 0);
+});
+
+test("engines map reviewed Official Form 122A-2 lines 19-23 to the correct deductions", () => {
+  const legacy = runMeansTest(createLegacyInput({
+    monthlySupportObligations: 150,
+    monthlyEducationEmployment: 125,
+    monthlyChildcare: 300,
+    monthlyChronicHealthcare: 75,
+    monthlyTelecom: 250,
+  }));
+  assert.notEqual(legacy.outcome, "EXEMPT");
+  assert.notEqual(legacy.outcome, "BELOW_MEDIAN");
+
+  const byLine = new Map(legacy.deductions.map((line) => [line.formLine, line]));
+  assert.equal(byLine.get("19")?.label, "Court-Ordered Payments");
+  assert.equal(byLine.get("20")?.label, "Education");
+  assert.equal(byLine.get("21")?.label, "Childcare");
+  assert.equal(byLine.get("22")?.label, "Additional Healthcare (Excluding Insurance Costs)");
+  assert.equal(byLine.get("23")?.label, "Optional Telephones and Telephone Services");
+  assert.equal(byLine.get("23")?.amount, 195);
+
+  const v2 = runMeansTestV2(createV2Input({
+    county: "Orange",
+    state: "CA",
+    monthlySupportObligations: 150,
+    monthlyEducationEmployment: 125,
+    monthlyChildcare: 300,
+    monthlyChronicHealthcare: 75,
+    monthlyTelecom: 250,
+  }));
+  const v2ByLine = new Map(v2.deductions.map((line) => [line.formLine, line]));
+  assert.equal(v2ByLine.get("19")?.label, "Court-Ordered Payments");
+  assert.equal(v2ByLine.get("20")?.label, "Education");
+  assert.equal(v2ByLine.get("21")?.label, "Childcare");
+  assert.equal(v2ByLine.get("22")?.label, "Additional Healthcare (Excluding Insurance Costs)");
+  assert.equal(v2ByLine.get("23")?.label, "Optional Telephones and Telephone Services");
+  assert.equal(v2ByLine.get("23")?.amount, 195);
+});
+
+
+
+test("engines remap reviewed form lines 25, 29, 30, 35, and 36 and cap line 30 at 5%", () => {
+  const legacy = runMeansTest(createLegacyInput({
+    monthlyHealthInsurance: 400,
+    monthlyDependentChildEducation: 500,
+    monthlySpecialDietFood: 1000,
+    monthlyPriorityDebts: 250,
+  }));
+  assert.notEqual(legacy.outcome, "EXEMPT");
+  assert.notEqual(legacy.outcome, "BELOW_MEDIAN");
+  const legacyByLine = new Map(legacy.deductions.map((line) => [line.formLine, line]));
+  assert.equal(legacyByLine.get("25")?.label, "Health / Disability Insurance and Health Savings Account Expenses");
+  assert.equal(legacyByLine.get("29")?.label, "Dependent Children's Education (K-12, Legally Required)");
+  assert.equal(legacyByLine.get("30")?.amount, 48.85);
+  assert.equal(legacyByLine.get("35")?.amount, 250);
+  assert.equal(legacyByLine.get("36")?.amount, 25);
+
+  const v2 = runMeansTestV2(createV2Input({
+    county: "Orange",
+    state: "CA",
+    monthlyHealthInsurance: 400,
+    monthlyDependentChildEducation: 500,
+    monthlySpecialDietFood: 1000,
+    monthlyPriorityDebts: 250,
+  }));
+  const v2ByLine = new Map(v2.deductions.map((line) => [line.formLine, line]));
+  assert.equal(v2ByLine.get("25")?.label, "Health / Disability Insurance and Health Savings Account Expenses");
+  assert.equal(v2ByLine.get("29")?.label, "Education Expenses for Dependent Children Under 18");
+  assert.equal(v2ByLine.get("30")?.amount, 48.85);
+  assert.equal(v2ByLine.get("35")?.amount, 250);
+  assert.equal(v2ByLine.get("36")?.amount, 25);
 });
 
 test("v2 engine emits warnings and assumptions for missing county and missing mortgage actual", () => {
@@ -163,18 +250,31 @@ test("bundle engine treats second-vehicle cap as incremental over first vehicle"
   assert.notEqual(result.outcome, "EXEMPT");
   assert.notEqual(result.outcome, "BELOW_MEDIAN");
 
-  const ownershipLines = result.deductions.filter((line) => line.formLine === "13a");
+  const ownershipLines = result.deductions.filter((line) => line.formLine === "13c" || line.formLine === "13f");
   assert.equal(ownershipLines.length, 2);
   assert.deepEqual(
     ownershipLines.map((line) => line.amount),
-    [500, 400]
+    [0, 0]
   );
 });
 
 
 test("embedded dataset bundle rejects unsupported filing dates before transportation coverage begins", () => {
-  assert.throws(() => getEmbeddedDatasetBundle("2025-11-01"), /transportation data is only effective 2026-04-01/i);
+  assert.throws(() => getEmbeddedDatasetBundle("2025-11-01"), /transportation begins 2026-04-01/i);
   assert.equal(EMBEDDED_MIN_SUPPORTED_FILING_DATE, "2026-04-01");
+});
+
+
+
+test("embedded dataset support reports manifest-backed resolution details", () => {
+  const unsupported = getEmbeddedDatasetSupport("2025-11-15");
+  assert.equal(unsupported.supported, false);
+  assert.equal(unsupported.resolvedManifestDate, "2025-11-01");
+  assert.match(unsupported.reason ?? "", /transportation begins 2026-04-01/i);
+
+  const supported = getEmbeddedDatasetSupport("2026-04-15");
+  assert.equal(supported.supported, true);
+  assert.equal(supported.resolvedManifestDate, "2026-04-01");
 });
 
 test("v2 engine audit reflects the resolved embedded transportation effective date", () => {
@@ -184,11 +284,31 @@ test("v2 engine audit reflects the resolved embedded transportation effective da
 });
 
 
+
+
+test("v2 engine warns when transportation falls back to regional costs", () => {
+  const result = runMeansTestV2(createV2Input({ county: "Unknown County", state: "CA" }));
+  assert.ok(result.audit.warnings.some((warning) => warning.includes("Transportation uses") && warning.includes("regional operating costs")));
+
+  const operatingLine = result.deductions.find((line) => line.formLine === "12");
+  assert.equal(operatingLine?.note?.startsWith("regional:"), true);
+});
+
+
+test("v2 engine does not warn when transportation resolves to an exact county/MSA match", () => {
+  const result = runMeansTestV2(createV2Input({ county: "Orange", state: "CA" }));
+  assert.equal(result.audit.warnings.some((warning) => warning.includes("regional operating costs")), false);
+
+  const operatingLine = result.deductions.find((line) => line.formLine === "12");
+  assert.equal(operatingLine?.note?.startsWith("msa:"), true);
+});
+
 test("v2 audit exposes embedded source hashes for resolved datasets", () => {
   const result = runMeansTestV2(createV2Input({ county: "Orange", state: "CA" }));
   assert.equal(result.audit.datasets.housing.sourceHash?.startsWith("embedded-snapshot:"), true);
   assert.equal(result.audit.datasets.transportation.sourceHash?.startsWith("embedded-snapshot:"), true);
-  assert.ok(result.audit.datasets.transportation.notes?.some((note) => note.includes("transitional")));
+  assert.equal(result.audit.datasets.transportation.notes?.length ?? 0, 0);
+  assert.equal(result.audit.datasets.housing.notes?.length ?? 0, 0);
 });
 
 
@@ -219,6 +339,9 @@ test("buildAuditPacket includes reviewer signoff metadata when provided", () => 
   assert.equal(packet.review?.reviewerNotes, "Verified county and filing date");
   assert.equal(packet.review?.reviewedAt, "2026-03-22T00:05:00.000Z");
   assert.ok(packet.reviewRequirements.includes("Audit assumptions were used."));
+  assert.equal(packet.reviewStatus.readyForExport, true);
+  assert.equal(packet.reviewStatus.completedBy, "A. Reviewer");
+  assert.equal(packet.reviewStatus.completedAt, "2026-03-22T00:05:00.000Z");
 });
 
 
@@ -241,4 +364,30 @@ test("getReviewerSignoffReasons explains why export signoff is required", () => 
 
   const exempt = runMeansTestV2(createV2Input({ debtType: "business" }));
   assert.deepEqual(getReviewerSignoffReasons(exempt), []);
+});
+
+
+test("getAuditReviewStatus reports export blockers when reviewer signoff fields are missing", () => {
+  const warned = runMeansTestV2(createV2Input({ county: "" }));
+  const status = getAuditReviewStatus(warned);
+  assert.equal(status.signoffRequired, true);
+  assert.equal(status.readyForExport, false);
+  assert.ok(status.blockers.includes("Reviewer name is missing."));
+  assert.ok(status.blockers.includes("Reviewer notes are missing."));
+});
+
+
+test("getAuditReviewStatus is ready once required reviewer fields are complete", () => {
+  const warned = runMeansTestV2(createV2Input({ county: "" }));
+  const review = normalizeAuditReview({
+    reviewerName: "  A. Reviewer  ",
+    reviewerNotes: "  Confirmed county fallback warning with counsel.  ",
+    reviewedAt: "2026-03-22T00:05:00.000Z",
+  });
+
+  const status = getAuditReviewStatus(warned, review);
+  assert.equal(status.readyForExport, true);
+  assert.deepEqual(status.blockers, []);
+  assert.equal(status.completedBy, "A. Reviewer");
+  assert.equal(status.completedAt, "2026-03-22T00:05:00.000Z");
 });

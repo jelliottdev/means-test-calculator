@@ -3,9 +3,6 @@
   "effective_date": "2025-11-01",
   "source_url": "https://www.justice.gov/ust/means-testing",
   "coverage": "state defaults + selected MSA overrides + nationwide county and county-equivalent overrides",
-  "warnings": [
-    "Embedded housing registry is transitional until generated county-level artifacts are wired in."
-  ],
   "county_overrides": [
     {
       "state": "AL",

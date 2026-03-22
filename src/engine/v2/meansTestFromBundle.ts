@@ -87,19 +87,19 @@ function getHousingAllowanceFromBundle(bundle: MeansTestDatasetBundle, state: st
   return { utility: std.utility[idx], mortgageCap: std.mortgage[idx], matched: "state_default" };
 }
 
-function getTransportOperatingCostFromBundle(bundle: MeansTestDatasetBundle, state: string, county: string, numCars: number): number {
+function getTransportOperatingCostFromBundle(bundle: MeansTestDatasetBundle, state: string, county: string, numCars: number) {
   const idx = numCars >= 2 ? 1 : 0;
-  for (const region of Object.values(bundle.transportation.regions)) {
+  for (const [regionName, region] of Object.entries(bundle.transportation.regions)) {
     if (!region.states.includes(state)) continue;
-    for (const msa of Object.values(region.msas)) {
+    for (const [msaName, msa] of Object.entries(region.msas)) {
       const counties = msa.counties[state];
       if (counties?.some((c) => countyNamesMatch(c, county))) {
-        return msa.costs[idx];
+        return { amount: msa.costs[idx], matched: `msa:${msaName}`, region: regionName };
       }
     }
-    return region.regional[idx];
+    return { amount: region.regional[idx], matched: `regional:${regionName}`, region: regionName };
   }
-  return 281;
+  return { amount: 281, matched: "fallback", region: undefined };
 }
 
 export function runMeansTestFromBundle(input: MeansTestInputV2, bundle: MeansTestDatasetBundle): MeansTestResultV2 {
@@ -181,8 +181,10 @@ export function runMeansTestFromBundle(input: MeansTestInputV2, bundle: MeansTes
     deductions.push({ label: "Public Transportation (National Standard)", amount: bundle.transportation.public_transport, source: "national", formLine: "14", datasetKey: "transportation" });
   } else {
     const numVehicles = Math.min(input.vehicles.length, 2);
-    const operatingCost = getTransportOperatingCostFromBundle(bundle, input.state, input.county, numVehicles);
-    deductions.push({ label: `Vehicle Operating Costs (${numVehicles} car${numVehicles > 1 ? "s" : ""}, Local Standard)`, amount: operatingCost, source: "local", formLine: "12", datasetKey: "transportation" });
+    const transport = getTransportOperatingCostFromBundle(bundle, input.state, input.county, numVehicles);
+    if (transport.matched.startsWith("regional:")) warnings.push(`Transportation uses ${transport.region} regional operating costs instead of an exact MSA/county match; verify the current IRS transportation chart before filing.`);
+    if (transport.matched === "fallback") warnings.push("Transportation used the absolute fallback operating cost because no regional dataset matched; do not rely on this result without correcting the data.");
+    deductions.push({ label: `Vehicle Operating Costs (${numVehicles} car${numVehicles > 1 ? "s" : ""}, Local Standard)`, amount: transport.amount, source: "local", formLine: "12", datasetKey: "transportation", note: transport.matched });
     input.vehicles.slice(0, 2).forEach((vehicle, idx) => {
       if (!vehicle.hasLoanOrLease || vehicle.monthlyPayment <= 0) return;
       const ownershipStd = getOwnershipCapForVehicle(
@@ -190,26 +192,37 @@ export function runMeansTestFromBundle(input: MeansTestInputV2, bundle: MeansTes
         bundle.transportation.ownership_1_car,
         bundle.transportation.ownership_2_car
       );
-      const ownershipDeduction = Math.min(ownershipStd, vehicle.monthlyPayment);
-      deductions.push({ label: `Vehicle Ownership/Lease (${vehicle.id})`, amount: ownershipDeduction, source: "local", formLine: "13a", datasetKey: "transportation" });
+      const ownershipDeduction = Math.max(0, ownershipStd - vehicle.monthlyPayment);
+      deductions.push({
+        label: `Net ${vehicle.id} Ownership / Lease Expense`,
+        amount: ownershipDeduction,
+        source: "local",
+        formLine: idx === 0 ? "13c" : "13f",
+        datasetKey: "transportation",
+        note: `IRS standard $${ownershipStd} minus average monthly debt payment $${vehicle.monthlyPayment}`,
+      });
     });
   }
 
   if (input.monthlyTaxes > 0) deductions.push({ label: "Taxes (Payroll & Income)", amount: input.monthlyTaxes, source: "actual", formLine: "16" });
   if (input.monthlyInvoluntaryDeductions > 0) deductions.push({ label: "Involuntary Payroll Deductions", amount: input.monthlyInvoluntaryDeductions, source: "actual", formLine: "17" });
   if (input.monthlyTermLifeInsurance > 0) deductions.push({ label: "Term Life Insurance Premiums", amount: input.monthlyTermLifeInsurance, source: "actual", formLine: "18" });
-  if (input.monthlyEducationEmployment > 0) deductions.push({ label: "Education (Employment-Related)", amount: input.monthlyEducationEmployment, source: "actual", formLine: "19" });
-  if (input.monthlyChildcare > 0) deductions.push({ label: "Childcare", amount: input.monthlyChildcare, source: "actual", formLine: "20" });
-  if (input.monthlyChronicHealthcare > 0) deductions.push({ label: "Additional Healthcare (Chronic/Disabled)", amount: input.monthlyChronicHealthcare, source: "actual", formLine: "21" });
-  if (input.monthlyTelecom > 0) deductions.push({ label: "Telecommunications", amount: Math.min(bundle.national_standards.telecom_allowance, input.monthlyTelecom), source: "actual", formLine: "22", datasetKey: "national_standards" });
-  if (input.monthlyHealthInsurance > 0) deductions.push({ label: "Health Insurance Premiums", amount: input.monthlyHealthInsurance, source: "actual", formLine: "25a" });
-  if (input.monthlyDependentChildEducation > 0) deductions.push({ label: "Dependent Children's Education (K-12)", amount: input.monthlyDependentChildEducation, source: "actual", formLine: "25c" });
-  if (input.monthlySpecialDietFood > 0) deductions.push({ label: "Special Diet / Medical Food", amount: input.monthlySpecialDietFood, source: "actual", formLine: "25d" });
-  if (input.monthlySupportObligations > 0) deductions.push({ label: "Domestic Support Obligations", amount: input.monthlySupportObligations, source: "actual", formLine: "25e" });
+  if (input.monthlySupportObligations > 0) deductions.push({ label: "Court-Ordered Payments", amount: input.monthlySupportObligations, source: "actual", formLine: "19", note: "Current monthly payments required by court or administrative order" });
+  if (input.monthlyEducationEmployment > 0) deductions.push({ label: "Education", amount: input.monthlyEducationEmployment, source: "actual", formLine: "20", note: "Only include education allowed by Official Form 122A-2 line 20" });
+  if (input.monthlyChildcare > 0) deductions.push({ label: "Childcare", amount: input.monthlyChildcare, source: "actual", formLine: "21" });
+  if (input.monthlyChronicHealthcare > 0) deductions.push({ label: "Additional Healthcare (Excluding Insurance Costs)", amount: input.monthlyChronicHealthcare, source: "actual", formLine: "22", note: "Only the amount above the Line 7 out-of-pocket standard" });
+  if (input.monthlyTelecom > 0) deductions.push({ label: "Optional Telephones and Telephone Services", amount: Math.min(bundle.national_standards.telecom_allowance, input.monthlyTelecom), source: "actual", formLine: "23", datasetKey: "national_standards", note: input.monthlyTelecom > bundle.national_standards.telecom_allowance ? `Capped at IRS standard $${bundle.national_standards.telecom_allowance}; actual $${input.monthlyTelecom}` : "Do not include basic home phone, internet, or basic cell phone service" });
+  if (input.monthlyHealthInsurance > 0) deductions.push({ label: "Health / Disability Insurance and Health Savings Account Expenses", amount: input.monthlyHealthInsurance, source: "actual", formLine: "25", note: "Enter the total actually spent for line 25 items" });
+  if (input.monthlyDependentChildEducation > 0) deductions.push({ label: "Education Expenses for Dependent Children Under 18", amount: input.monthlyDependentChildEducation, source: "actual", formLine: "29", note: "Verify the current per-child cap and documentation requirements before filing" });
+  if (input.monthlySpecialDietFood > 0) {
+    const foodClothingCap = Math.round(foodClothing * 0.05 * 100) / 100;
+    const allowedFoodClothing = Math.min(foodClothingCap, input.monthlySpecialDietFood);
+    deductions.push({ label: "Additional Food and Clothing Expense", amount: allowedFoodClothing, source: "actual", formLine: "30", note: input.monthlySpecialDietFood > foodClothingCap ? `Capped at 5% of line 6 allowance ($${foodClothingCap.toFixed(2)}); actual $${input.monthlySpecialDietFood}` : "Subject to documentation and reasonableness requirements" });
+  }
   if (input.monthlyPriorityDebts > 0) {
-    deductions.push({ label: "Priority Debt Payments", amount: input.monthlyPriorityDebts, source: "actual", formLine: "24-26" });
+    deductions.push({ label: "Past-Due Priority Claims", amount: input.monthlyPriorityDebts, source: "actual", formLine: "35" });
     const adminExpense = Math.round(input.monthlyPriorityDebts * bundle.thresholds.admin_expense_multiplier);
-    if (adminExpense > 0) deductions.push({ label: "Chapter 13 Administrative Expenses", amount: adminExpense, source: "calculation", formLine: "27", datasetKey: "thresholds" });
+    if (adminExpense > 0) deductions.push({ label: "Chapter 13 Administrative Expenses", amount: adminExpense, source: "calculation", formLine: "36", datasetKey: "thresholds" });
   }
   if (input.monthlyOtherSecuredDebt > 0) deductions.push({ label: "Other Secured Debt Payments", amount: input.monthlyOtherSecuredDebt, source: "actual", formLine: "33" });
 

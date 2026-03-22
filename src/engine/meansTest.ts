@@ -54,22 +54,22 @@ export interface MeansTestInput {
   monthlyInvoluntaryDeductions: number; // mandatory retirement, union dues, uniform costs
   // Line 18 — life insurance
   monthlyTermLifeInsurance: number;  // term life premiums for debtor's dependents
-  // Line 19 — employment education
-  monthlyEducationEmployment: number; // tuition/fees required for current job
-  // Line 22 — telecommunications (capped at IRS allowance)
+  // Line 20 — education
+  monthlyEducationEmployment: number; // education allowed by Official Form 122A-2 line 20
+  // Line 23 — optional telephones and telephone services (capped at IRS allowance)
   monthlyTelecom: number;
   // Line 25a
   monthlyHealthInsurance: number;    // premiums paid, not reimbursed
-  // Line 25b
+  // Line 21
   monthlyChildcare: number;
-  // Line 21 — additional healthcare (above national standard)
+  // Line 22 — additional healthcare (above national standard)
   monthlyChronicHealthcare: number;  // ongoing treatment for chronically ill or disabled household member
   // Line 25c — dependent children K-12 education
   monthlyDependentChildEducation: number; // legally required school tuition/fees for children under 18
   // Line 25d — special diet / medical food
   monthlySpecialDietFood: number;    // additional food costs above Line 6 standard for medical reasons
-  // Line 25e
-  monthlySupportObligations: number; // domestic support paid by court order
+  // Line 19
+  monthlySupportObligations: number; // current payments required by court or administrative order
   // Lines 24–26 — priority claims
   monthlyPriorityDebts: number;      // back taxes, domestic support arrears
   // Line 33 — other secured debt
@@ -232,29 +232,25 @@ export function runMeansTest(input: MeansTestInput): MeansTestResult {
     // Line 13a: Vehicle ownership/lease costs
     if (input.hasCarPayment && input.monthlyCarPayment > 0) {
       const vehicleOneCap = getOwnershipCapForVehicle(0);
-      const ownershipDeduction = Math.min(vehicleOneCap, input.monthlyCarPayment);
+      const ownershipDeduction = Math.max(0, vehicleOneCap - input.monthlyCarPayment);
       deductions.push({
-        label: "Vehicle Ownership/Lease (Vehicle 1)",
+        label: "Net Vehicle 1 Ownership / Lease Expense",
         amount: ownershipDeduction,
         source: "local",
-        formLine: "13a",
-        note: input.monthlyCarPayment > vehicleOneCap
-          ? `Capped at standard $${vehicleOneCap}; actual payment $${input.monthlyCarPayment}`
-          : undefined,
+        formLine: "13c",
+        note: `IRS standard $${vehicleOneCap} minus average monthly debt payment $${input.monthlyCarPayment}`,
       });
     }
     if (input.numVehicles >= 2 && input.hasSecondCarPayment && (input.monthlySecondCarPayment ?? 0) > 0) {
       const secondPayment = input.monthlySecondCarPayment ?? 0;
       const vehicleTwoCap = getOwnershipCapForVehicle(1);
-      const secondOwnershipDeduction = Math.min(vehicleTwoCap, secondPayment);
+      const secondOwnershipDeduction = Math.max(0, vehicleTwoCap - secondPayment);
       deductions.push({
-        label: "Vehicle Ownership/Lease (Vehicle 2)",
+        label: "Net Vehicle 2 Ownership / Lease Expense",
         amount: secondOwnershipDeduction,
         source: "local",
-        formLine: "13a",
-        note: secondPayment > vehicleTwoCap
-          ? `Capped at standard $${vehicleTwoCap}; actual payment $${secondPayment}`
-          : undefined,
+        formLine: "13f",
+        note: `IRS standard $${vehicleTwoCap} minus average monthly debt payment $${secondPayment}`,
       });
     }
   }
@@ -286,95 +282,112 @@ export function runMeansTest(input: MeansTestInput): MeansTestResult {
     });
   }
 
-  // Line 19: Education required for current job
-  if (input.monthlyEducationEmployment > 0) {
+  // Line 19: Court-ordered payments (e.g. current support ordered by a court or agency)
+  if (input.monthlySupportObligations > 0) {
     deductions.push({
-      label: "Education (Employment-Related, Legally Required)",
-      amount: input.monthlyEducationEmployment,
+      label: "Court-Ordered Payments",
+      amount: input.monthlySupportObligations,
       source: "actual",
       formLine: "19",
+      note: "Current monthly payments required by court or administrative order",
     });
   }
 
-  // Line 20: Childcare
-  if (input.monthlyChildcare > 0) {
-    deductions.push({ label: "Childcare", amount: input.monthlyChildcare, source: "actual", formLine: "20" });
+  // Line 20: Education required for employment or for a physically/mentally challenged dependent child
+  if (input.monthlyEducationEmployment > 0) {
+    deductions.push({
+      label: "Education",
+      amount: input.monthlyEducationEmployment,
+      source: "actual",
+      formLine: "20",
+      note: "Only include education allowed by Official Form 122A-2 line 20",
+    });
   }
 
-  // Line 21: Additional healthcare for chronically ill or disabled household member
+  // Line 21: Childcare
+  if (input.monthlyChildcare > 0) {
+    deductions.push({ label: "Childcare", amount: input.monthlyChildcare, source: "actual", formLine: "21" });
+  }
+
+  // Line 22: Additional healthcare for chronically ill or disabled household member
   if (input.monthlyChronicHealthcare > 0) {
     deductions.push({
-      label: "Additional Healthcare (Chronically Ill/Disabled, above National Standard)",
+      label: "Additional Healthcare (Excluding Insurance Costs)",
       amount: input.monthlyChronicHealthcare,
       source: "actual",
-      formLine: "21",
-      note: "Ongoing treatment costs above IRS out-of-pocket standard on Line 7",
+      formLine: "22",
+      note: "Only the amount above the Line 7 out-of-pocket standard",
     });
   }
 
-  // Line 22: Telecommunications (capped at IRS allowance)
+  // Line 23: Optional telephones and telephone services (capped at IRS allowance)
   if (input.monthlyTelecom > 0) {
     const telecomDeduction = Math.min(TELECOM_ALLOWANCE, input.monthlyTelecom);
     deductions.push({
-      label: "Telecommunications (Phone, Internet)",
+      label: "Optional Telephones and Telephone Services",
       amount: telecomDeduction,
       source: "actual",
-      formLine: "22",
+      formLine: "23",
       note: input.monthlyTelecom > TELECOM_ALLOWANCE
         ? `Capped at IRS standard $${TELECOM_ALLOWANCE}; actual $${input.monthlyTelecom}`
-        : undefined,
+        : "Do not include basic home phone, internet, or basic cell phone service",
     });
   }
 
-  // Line 25a: Health insurance premiums
+  // Line 25: Health insurance, disability insurance, and health savings account expenses
   if (input.monthlyHealthInsurance > 0) {
-    deductions.push({ label: "Health Insurance Premiums", amount: input.monthlyHealthInsurance, source: "actual", formLine: "25a" });
+    deductions.push({
+      label: "Health / Disability Insurance and Health Savings Account Expenses",
+      amount: input.monthlyHealthInsurance,
+      source: "actual",
+      formLine: "25",
+      note: "Enter the total actually spent for line 25 items",
+    });
   }
 
-  // Line 25c: Education expenses for dependent children (K-12)
+  // Line 29: Education expenses for dependent children who are younger than 18
   if (input.monthlyDependentChildEducation > 0) {
     deductions.push({
       label: "Dependent Children's Education (K-12, Legally Required)",
       amount: input.monthlyDependentChildEducation,
       source: "actual",
-      formLine: "25c",
-      note: "Tuition/fees for children under 18 attending private/charter school where legally required",
+      formLine: "29",
+      note: "Verify the current per-child cap and documentation requirements before filing",
     });
   }
 
-  // Line 25d: Additional food/clothing for special medical/dietary needs
+  // Line 30: Additional food and clothing expense (capped at 5% of line 6 standard)
   if (input.monthlySpecialDietFood > 0) {
+    const foodClothingCap = Math.round(foodClothing * 0.05 * 100) / 100;
+    const allowedFoodClothing = Math.min(foodClothingCap, input.monthlySpecialDietFood);
     deductions.push({
-      label: "Special Diet / Medical Food (Above National Standard)",
-      amount: input.monthlySpecialDietFood,
+      label: "Additional Food and Clothing Expense",
+      amount: allowedFoodClothing,
       source: "actual",
-      formLine: "25d",
-      note: "Additional food costs above Line 6 standard due to disability, chronic illness, or medically required diet",
+      formLine: "30",
+      note: input.monthlySpecialDietFood > foodClothingCap
+        ? `Capped at 5% of line 6 allowance ($${foodClothingCap.toFixed(2)}); actual $${input.monthlySpecialDietFood}`
+        : "Subject to documentation and reasonableness requirements",
     });
   }
 
-  // Line 25e: Court-ordered domestic support obligations
-  if (input.monthlySupportObligations > 0) {
-    deductions.push({ label: "Domestic Support Obligations (Court-Ordered)", amount: input.monthlySupportObligations, source: "actual", formLine: "25e" });
-  }
-
-  // Lines 24–26: Priority debt payments (back taxes, domestic support arrears)
+  // Line 35: Past-due priority claims
   if (input.monthlyPriorityDebts > 0) {
     deductions.push({
-      label: "Priority Debt Payments (Back Taxes, Support Arrears)",
+      label: "Past-Due Priority Claims",
       amount: input.monthlyPriorityDebts,
       source: "actual",
-      formLine: "24-26",
+      formLine: "35",
     });
 
-    // Line 27: Chapter 13 admin expenses (10% of priority debt payments)
+    // Line 36: Chapter 13 administrative expense
     const adminExpense = Math.round(input.monthlyPriorityDebts * ADMIN_EXPENSE_MULTIPLIER);
     if (adminExpense > 0) {
       deductions.push({
         label: "Chapter 13 Administrative Expenses (10% of Priority Debts)",
         amount: adminExpense,
         source: "calculation",
-        formLine: "27",
+        formLine: "36",
         note: `10% × $${input.monthlyPriorityDebts}`,
       });
     }

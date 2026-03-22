@@ -149,7 +149,7 @@ Current guardrails in this codebase:
 - Filing-date support is explicitly limited to cases filed on or after **April 1, 2026** because the embedded transportation dataset currently begins on that date even though other embedded datasets begin on November 1, 2025
 - Result output now includes dataset provenance, warnings, and assumptions so reviewers can spot fallback logic
 - Publication-readiness scripts exist to validate dataset coverage and source metadata before deployment
-- Embedded data remains a snapshot; county-level and future-period updates should be refreshed before production use
+- Embedded runtime resolution is now manifest-backed from the checked-in artifact snapshots, but future-period updates should still be refreshed before production use
 
 To use this in a legally defensible workflow, you should also:
 
