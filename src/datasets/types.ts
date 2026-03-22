@@ -47,6 +47,12 @@ export interface TransportationArtifact extends DatasetArtifactHeader {
 
 export interface HousingArtifact extends DatasetArtifactHeader {
   kind: "housing";
+  county_overrides?: Array<{
+    state: string;
+    county: string;
+    utility: [number, number, number, number, number];
+    mortgage: [number, number, number, number, number];
+  }>;
   state_defaults: Record<string, {
     utility: [number, number, number, number, number];
     mortgage: [number, number, number, number, number];

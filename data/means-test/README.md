@@ -20,4 +20,5 @@ This directory is the target location for versioned means test data artifacts.
 
 - `manifest.json` under a filing-date directory maps each dataset kind to the effective date that should be used.
 - This allows mixed effective dates across dataset types.
-- The current repo only includes a sample manifest. Artifact generation still needs to be wired from the fetch pipeline.
+- The repo can be seeded from the embedded snapshot with `npm run generate:artifacts -- --filing-date 2025-11-01`.
+- Generated artifacts should still be refreshed from the official DOJ/UST fetch pipeline before production publication.

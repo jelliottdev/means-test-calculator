@@ -7,10 +7,15 @@ function normalizeVehicles(input: MeansTestInput): VehicleInput[] {
 
   const vehicles: VehicleInput[] = [];
   for (let i = 0; i < numVehicles; i += 1) {
+    const isPrimaryVehicle = i === 0;
+    const hasLoanOrLease = isPrimaryVehicle ? !!input.hasCarPayment : !!input.hasSecondCarPayment;
+    const monthlyPayment = isPrimaryVehicle
+      ? input.monthlyCarPayment || 0
+      : input.monthlySecondCarPayment || 0;
     vehicles.push({
       id: `vehicle-${i + 1}`,
-      hasLoanOrLease: i === 0 ? !!input.hasCarPayment : false,
-      monthlyPayment: i === 0 ? input.monthlyCarPayment || 0 : 0,
+      hasLoanOrLease,
+      monthlyPayment,
       operatingEligible: true,
     });
   }

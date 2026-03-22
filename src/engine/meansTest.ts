@@ -42,6 +42,8 @@ export interface MeansTestInput {
   numVehicles: 0 | 1 | 2;
   hasCarPayment: boolean;
   monthlyCarPayment: number;
+  hasSecondCarPayment?: boolean;
+  monthlySecondCarPayment?: number;
 
   // ── Actual Expense Deductions (Form 122A-2) ──────────────────────────────
   // Line 8b
@@ -107,6 +109,11 @@ export type MeansTestResult =
       threshold25Pct: number;
       presumptionOfAbuse: boolean;
     };
+
+function getOwnershipCapForVehicle(vehicleIndex: number): number {
+  if (vehicleIndex <= 0) return TRANSPORT_OWNERSHIP_1_CAR;
+  return Math.max(0, TRANSPORT_OWNERSHIP_2_CAR - TRANSPORT_OWNERSHIP_1_CAR);
+}
 
 // ── Engine ────────────────────────────────────────────────────────────────────
 
@@ -222,17 +229,31 @@ export function runMeansTest(input: MeansTestInput): MeansTestResult {
       formLine: "12",
     });
 
-    // Line 13a: Vehicle ownership/lease costs (only if car payment exists)
+    // Line 13a: Vehicle ownership/lease costs
     if (input.hasCarPayment && input.monthlyCarPayment > 0) {
-      const ownershipStd = input.numVehicles >= 2 ? TRANSPORT_OWNERSHIP_2_CAR : TRANSPORT_OWNERSHIP_1_CAR;
-      const ownershipDeduction = Math.min(ownershipStd, input.monthlyCarPayment);
+      const vehicleOneCap = getOwnershipCapForVehicle(0);
+      const ownershipDeduction = Math.min(vehicleOneCap, input.monthlyCarPayment);
       deductions.push({
-        label: `Vehicle Ownership/Lease (${input.numVehicles} car${input.numVehicles > 1 ? "s" : ""})`,
+        label: "Vehicle Ownership/Lease (Vehicle 1)",
         amount: ownershipDeduction,
         source: "local",
         formLine: "13a",
-        note: input.monthlyCarPayment > ownershipStd
-          ? `Capped at standard $${ownershipStd}; actual payment $${input.monthlyCarPayment}`
+        note: input.monthlyCarPayment > vehicleOneCap
+          ? `Capped at standard $${vehicleOneCap}; actual payment $${input.monthlyCarPayment}`
+          : undefined,
+      });
+    }
+    if (input.numVehicles >= 2 && input.hasSecondCarPayment && (input.monthlySecondCarPayment ?? 0) > 0) {
+      const secondPayment = input.monthlySecondCarPayment ?? 0;
+      const vehicleTwoCap = getOwnershipCapForVehicle(1);
+      const secondOwnershipDeduction = Math.min(vehicleTwoCap, secondPayment);
+      deductions.push({
+        label: "Vehicle Ownership/Lease (Vehicle 2)",
+        amount: secondOwnershipDeduction,
+        source: "local",
+        formLine: "13a",
+        note: secondPayment > vehicleTwoCap
+          ? `Capped at standard $${vehicleTwoCap}; actual payment $${secondPayment}`
           : undefined,
       });
     }

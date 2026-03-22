@@ -5,6 +5,7 @@ export interface DatasetVersionMeta {
   effectiveDate: string;
   periodLabel: string;
   sourceUrl: string;
+  sourceHash?: string;
   fetchedAt?: string;
   notes?: string[];
 }

@@ -94,7 +94,7 @@ export function parseHousingArtifactV3(params: {
     throw new Error(`Housing parser v3 incomplete: expected at least 40 states parsed, got ${parsedStates}`);
   }
 
-  const msaOverrides = deriveHousingMsaOverrides(model);
+  const msaOverrides = deriveHousingMsaOverrides(model) ?? [];
   if (msaOverrides.length === 0) {
     warnings.push("housing v3 did not derive any grouped MSA-like overrides");
   }

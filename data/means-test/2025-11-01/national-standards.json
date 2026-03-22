@@ -1,0 +1,17 @@
+{
+  "kind": "national_standards",
+  "effective_date": "2025-11-01",
+  "source_url": "https://www.justice.gov/ust/means-testing",
+  "coverage": "national",
+  "food_clothing": {
+    "1": 545,
+    "2": 977,
+    "3": 1164,
+    "4": 1443
+  },
+  "food_clothing_increment_over_4": 275,
+  "healthcare_under_65": 84,
+  "healthcare_65_and_over": 149,
+  "telecom_allowance": 195,
+  "source_hash": "embedded-snapshot:e23536116853f30ef8f118337890d2124169cddfd715a8718e0e02ef6552af55"
+}

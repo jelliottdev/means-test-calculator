@@ -9,7 +9,7 @@ export function stripTags(input: string): string {
 }
 
 export function parseDollar(value: string): number {
-  return parseInt(value.replace(/[\$,\s]/g, ""), 10) || 0;
+  return parseInt(value.replace(/[$,\s]/g, ""), 10) || 0;
 }
 
 export function tableRows(html: string): string[] {

@@ -32,6 +32,8 @@ export function validateDatasetBundle(bundle: MeansTestDatasetBundle): ArtifactV
   if (bundle.national_standards.healthcare_65_and_over <= 0) errors.push("healthcare_65_and_over missing or invalid");
   if (bundle.national_standards.telecom_allowance <= 0) errors.push("telecom_allowance missing or invalid");
 
+  if ((bundle.housing.county_overrides?.length ?? 0) < 3000) warnings.push(`county override coverage unexpectedly low: ${bundle.housing.county_overrides?.length ?? 0}`);
+
   if (bundle.transportation.ownership_1_car <= 0) errors.push("transportation ownership_1_car missing or invalid");
   if (bundle.transportation.ownership_2_car <= 0) errors.push("transportation ownership_2_car missing or invalid");
   if (bundle.transportation.public_transport <= 0) errors.push("transportation public_transport missing or invalid");
