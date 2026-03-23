@@ -1,11 +1,13 @@
 import { useState, useEffect, useCallback } from "react";
 import { STATE_NAMES, EFFECTIVE_DATE, getHousingAllowanceDetails } from "./data/meansTestData";
-import { EMBEDDED_MIN_SUPPORTED_FILING_DATE, getEmbeddedDatasetSupport } from "./datasets/embedded";
+import { EMBEDDED_MIN_SUPPORTED_FILING_DATE, getEmbeddedDatasetBundle, getEmbeddedDatasetSupport } from "./datasets/embedded";
 import { buildAuditPacket, downloadAuditPacket, getAuditReviewStatus, getReviewerSignoffReasons, isReviewerSignoffRequired, normalizeAuditReview } from "./auditPacket";
 import { type MeansTestInput } from "./engine/meansTest";
 import { normalizeLegacyInput } from "./engine/v2/normalize";
 import { runMeansTestV2 } from "./engine/v2/meansTestV2";
 import type { DatasetVersionMeta, MeansTestResultV2 } from "./engine/v2/types";
+import { formatLookbackMonth, getMeansTestLookbackMonths } from "./lib/filingDate";
+import { getMeansTestPreflightAssessment } from "./lib/preflight";
 import "./index.css";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -141,6 +143,191 @@ function StatCard({
   );
 }
 
+function FilingDateBindingBanner({
+  filingDate,
+  datasetEntries,
+  supported,
+  supportReason,
+}: {
+  filingDate: string;
+  datasetEntries: Array<[string, DatasetVersionMeta]>;
+  supported: boolean;
+  supportReason?: string;
+}) {
+  const lookbackMonths = getMeansTestLookbackMonths(filingDate);
+
+  return (
+    <div className={`binding-banner${supported ? "" : " binding-banner-warn"}`}>
+      <div className="binding-banner-header">
+        <div>
+          <div className="binding-banner-title">Filing-date binding</div>
+          <div className="binding-banner-sub">
+            This result is tied to the selected filing date, statutory six-month lookback window, and resolved dataset effective dates.
+          </div>
+        </div>
+        <span className={`binding-badge${supported ? "" : " binding-badge-warn"}`}>
+          {supported ? "Supported filing date" : "Unsupported filing date"}
+        </span>
+      </div>
+
+      <div className="binding-grid">
+        <div className="binding-card">
+          <div className="binding-label">Filing date</div>
+          <div className="binding-value">{filingDate || "Not selected"}</div>
+        </div>
+        <div className="binding-card">
+          <div className="binding-label">CMI lookback window</div>
+          <div className="binding-months">
+            {lookbackMonths.length > 0 ? lookbackMonths.map((month) => (
+              <span key={month} className="binding-month-chip">{formatLookbackMonth(month)}</span>
+            )) : <span className="binding-empty">Enter a filing date to bind the six-month window.</span>}
+          </div>
+        </div>
+      </div>
+
+      <div className="binding-datasets">
+        {datasetEntries.map(([key, meta]) => (
+          <div key={key} className="binding-dataset">
+            <span className="binding-dataset-key">{key.replaceAll("_", " ")}</span>
+            <span className="binding-dataset-date">{meta.effectiveDate}</span>
+          </div>
+        ))}
+      </div>
+
+      {!supported && supportReason && <div className="binding-warning">{supportReason}</div>}
+    </div>
+  );
+}
+
+function WorkspaceOverview({
+  filingDate,
+  supported,
+  supportReason,
+  state,
+  county,
+  housingPreview,
+  totalCMI,
+  totalUnsecuredDebt,
+  preflight,
+}: {
+  filingDate: string;
+  supported: boolean;
+  supportReason?: string;
+  state: string;
+  county: string;
+  housingPreview: ReturnType<typeof getHousingAllowanceDetails> | null;
+  totalCMI: number;
+  totalUnsecuredDebt: number;
+  preflight: ReturnType<typeof getMeansTestPreflightAssessment>;
+}) {
+  const lookbackMonths = getMeansTestLookbackMonths(filingDate);
+  const geographyStatus =
+    !state ? "Select a state to load the correct median-income table." :
+    !county ? "Add a county to improve housing and transportation accuracy." :
+    housingPreview?.matched === "county_exact" ? `Using exact county housing for ${housingPreview.matchedName}.` :
+    housingPreview?.matched === "msa" ? `Using grouped ${housingPreview.matchedName} housing override; attorney review recommended.` :
+    housingPreview?.matched === "state_default" ? "Using statewide housing default until an exact county row is confirmed." :
+    "County mapping will be validated once jurisdiction details are complete.";
+
+  const geographyTone =
+    housingPreview?.matched === "county_exact" ? "good" :
+    state && county ? "warn" :
+    "neutral";
+
+  const workflowSteps = [
+    { label: "Case setup", done: Boolean(filingDate && state), note: filingDate && state ? "Filing date and state selected." : "Choose filing date and state." },
+    { label: "Income", done: totalCMI > 0, note: totalCMI > 0 ? `${fmt(totalCMI)}/mo CMI entered.` : "Enter six-month average income." },
+    { label: "Geography", done: Boolean(state && county), note: county ? county : "County not entered yet." },
+    { label: "Debt review", done: totalUnsecuredDebt > 0, note: totalUnsecuredDebt > 0 ? `${fmt(totalUnsecuredDebt)} unsecured debt captured.` : "Add unsecured debt to complete threshold review." },
+  ];
+
+  return (
+    <section className="overview-panel">
+      <div className="overview-header">
+        <div>
+          <div className="overview-eyebrow">Professional intake workspace</div>
+          <h2 className="overview-title">Prepare the case before you calculate.</h2>
+          <p className="overview-copy">
+            This dashboard surfaces the filing-period binding, geography quality, and intake completeness so attorneys and staff can catch issues before relying on the result.
+          </p>
+        </div>
+      </div>
+
+      <div className="overview-grid">
+        <div className="overview-card">
+          <div className="overview-card-label">Filing support</div>
+          <div className="overview-card-value">{supported ? "Ready" : "Unsupported"}</div>
+          <p className="overview-card-copy">
+            {supported ? `Embedded datasets support the selected filing date ${filingDate}.` : supportReason}
+          </p>
+        </div>
+        <div className="overview-card">
+          <div className="overview-card-label">Lookback window</div>
+          <div className="overview-card-value">{lookbackMonths.length} months</div>
+          <p className="overview-card-copy">
+            {lookbackMonths.length > 0 ? lookbackMonths.map(formatLookbackMonth).join(" · ") : "Choose a filing date to bind the statutory six-month window."}
+          </p>
+        </div>
+        <div className={`overview-card overview-card-${geographyTone}`}>
+          <div className="overview-card-label">Geography quality</div>
+          <div className="overview-card-value">
+            {housingPreview?.matched === "county_exact" ? "Exact county" : county ? "Needs review" : "Incomplete"}
+          </div>
+          <p className="overview-card-copy">{geographyStatus}</p>
+        </div>
+        <div className="overview-card">
+          <div className="overview-card-label">Financial snapshot</div>
+          <div className="overview-card-value">{fmt(totalCMI * 12)}</div>
+          <p className="overview-card-copy">
+            Annualized CMI from entered income; unsecured debt currently {fmt(totalUnsecuredDebt)}.
+          </p>
+        </div>
+      </div>
+
+      <div className={`preflight-panel preflight-${preflight.status}`}>
+        <div>
+          <div className="preflight-label">Live median-income preflight</div>
+          <div className="preflight-value">
+            {preflight.status === "below_median" ? "Likely below median" :
+             preflight.status === "above_median" ? "Above median review likely" :
+             preflight.status === "business_debts_exempt" ? "Likely exempt path" :
+             preflight.status === "unsupported_filing_date" ? "Unsupported filing date" :
+             "Need more inputs"}
+          </div>
+        </div>
+        <div className="preflight-metrics">
+          <div className="preflight-metric">
+            <span className="preflight-metric-label">Annualized CMI</span>
+            <span className="preflight-metric-value">{fmt(preflight.annualizedCmi)}</span>
+          </div>
+          <div className="preflight-metric">
+            <span className="preflight-metric-label">State median</span>
+            <span className="preflight-metric-value">{preflight.stateMedian ? fmt(preflight.stateMedian) : "—"}</span>
+          </div>
+          <div className="preflight-metric">
+            <span className="preflight-metric-label">Delta</span>
+            <span className="preflight-metric-value">
+              {typeof preflight.deltaFromMedian === "number"
+                ? `${preflight.deltaFromMedian >= 0 ? "+" : "−"}${fmt(Math.abs(preflight.deltaFromMedian))}`
+                : "—"}
+            </span>
+          </div>
+        </div>
+        <p className="preflight-copy">{preflight.summary}</p>
+      </div>
+
+      <div className="workflow-strip">
+        {workflowSteps.map((step) => (
+          <div key={step.label} className={`workflow-step${step.done ? " done" : ""}`}>
+            <div className="workflow-step-label">{step.label}</div>
+            <div className="workflow-step-note">{step.note}</div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function AuditPanel({
   result,
 }: {
@@ -272,6 +459,8 @@ function ResultView({
   const stateName = STATE_NAMES[input.state] ?? input.state;
   const [reviewerName, setReviewerName] = useState("");
   const [reviewerNotes, setReviewerNotes] = useState("");
+  const filingDateSupport = getEmbeddedDatasetSupport(input.filingDate);
+  const datasetEntries = Object.entries(result.audit.datasets) as Array<[string, DatasetVersionMeta]>;
   const reviewerRequiredForExport = isReviewerSignoffRequired(result);
   const reviewerSignoffReasons = getReviewerSignoffReasons(result);
   const reviewDraft = normalizeAuditReview(reviewerName || reviewerNotes ? { reviewerName, reviewerNotes } : undefined);
@@ -294,6 +483,12 @@ function ResultView({
   if (result.outcome === "EXEMPT") {
     return (
       <div className="result-wrap">
+        <FilingDateBindingBanner
+          filingDate={input.filingDate}
+          datasetEntries={datasetEntries}
+          supported={filingDateSupport.supported}
+          supportReason={filingDateSupport.reason}
+        />
         <div className="verdict verdict-pass">
           <div className="verdict-icon">✓</div>
           <div className="verdict-text">
@@ -325,6 +520,12 @@ function ResultView({
   if (result.outcome === "BELOW_MEDIAN") {
     return (
       <div className="result-wrap">
+        <FilingDateBindingBanner
+          filingDate={input.filingDate}
+          datasetEntries={datasetEntries}
+          supported={filingDateSupport.supported}
+          supportReason={filingDateSupport.reason}
+        />
         <div className="verdict verdict-pass">
           <div className="verdict-icon">✓</div>
           <div className="verdict-text">
@@ -389,6 +590,12 @@ function ResultView({
 
   return (
     <div className="result-wrap">
+      <FilingDateBindingBanner
+        filingDate={input.filingDate}
+        datasetEntries={datasetEntries}
+        supported={filingDateSupport.supported}
+        supportReason={filingDateSupport.reason}
+      />
       <div className={`verdict ${verdictClass}`}>
         <div className="verdict-icon">{verdictIcon}</div>
         <div className="verdict-text">
@@ -467,7 +674,7 @@ function ResultView({
           </div>
           <div className="threshold-item">
             <span className="threshold-label">Low Threshold (no presumption)</span>
-            <span className="threshold-val mono">$9,075</span>
+            <span className="threshold-val mono">{fmt(r.abuseThresholdLow)}</span>
           </div>
           <div className="threshold-item">
             <span className="threshold-label">25% of Unsecured Debt</span>
@@ -475,7 +682,7 @@ function ResultView({
           </div>
           <div className="threshold-item">
             <span className="threshold-label">High Threshold (presumption)</span>
-            <span className="threshold-val mono">$15,150</span>
+            <span className="threshold-val mono">{fmt(r.abuseThresholdHigh)}</span>
           </div>
         </div>
         {r.presumptionOfAbuse && (
@@ -487,9 +694,7 @@ function ResultView({
       </div>
 
       <div className="result-note">
-        <strong>Data effective:</strong> housing / median / thresholds {EFFECTIVE_DATE}; transportation 2026-04-01. This UI is only suitable for cases filed on or
-        after {MIN_SUPPORTED_FILING_DATE}. County omissions and zeroed actual-expense entries can change
-        the legal result, so review the audit warnings and assumptions before relying on the output.
+        County omissions, grouped geographic matches, and zeroed actual-expense entries can change the legal result. Review the filing-date binding banner, threshold values, and audit warnings before relying on this output.
       </div>
 
       
@@ -533,6 +738,22 @@ export default function App() {
   const [errors, setErrors] = useState<Partial<Record<string, string>>>({});
   const [reviewAcknowledged, setReviewAcknowledged] = useState(false);
   const filingDateSupport = getEmbeddedDatasetSupport(input.filingDate);
+  const embeddedBundle = filingDateSupport.supported ? getEmbeddedDatasetBundle(input.filingDate) : undefined;
+  const previewDatasetEntries: Array<[string, DatasetVersionMeta]> =
+    filingDateSupport.supported
+      ? Object.entries(embeddedBundle!).flatMap(([key, value]) => {
+          if (key === "filing_date") return [];
+          return [[key, {
+            key: value.kind,
+            effectiveDate: value.effective_date,
+            periodLabel: value.coverage ?? value.effective_date,
+            sourceUrl: value.source_url,
+            sourceHash: value.source_hash,
+            fetchedAt: value.fetched_at,
+            notes: value.warnings,
+          }]];
+        }) as Array<[string, DatasetVersionMeta]>
+      : [];
 
   // Persist to session storage whenever input changes
   useEffect(() => {
@@ -601,6 +822,14 @@ export default function App() {
   };
 
   const totalCMI = input.incomeSources.reduce((s, src) => s + src.monthlyAmount, 0);
+  const preflight = getMeansTestPreflightAssessment({
+    bundle: embeddedBundle,
+    supportedFilingDate: filingDateSupport.supported,
+    state: input.state,
+    householdSize: input.householdSize,
+    totalCmi: totalCMI,
+    debtType: input.debtType,
+  });
 
   // Housing allowance preview (shows as user fills in state/county/household)
   const housingPreview =
@@ -631,6 +860,23 @@ export default function App() {
           <ResultView result={result} input={input} onReset={reset} />
         ) : (
           <form className="form" onSubmit={e => { e.preventDefault(); calculate(); }}>
+            <FilingDateBindingBanner
+              filingDate={input.filingDate}
+              datasetEntries={previewDatasetEntries}
+              supported={filingDateSupport.supported}
+              supportReason={filingDateSupport.reason ?? `This UI only supports cases filed on or after ${MIN_SUPPORTED_FILING_DATE}.`}
+            />
+            <WorkspaceOverview
+              filingDate={input.filingDate}
+              supported={filingDateSupport.supported}
+              supportReason={filingDateSupport.reason}
+              state={input.state}
+              county={input.county}
+              housingPreview={housingPreview}
+              totalCMI={totalCMI}
+              totalUnsecuredDebt={input.totalUnsecuredDebt}
+              preflight={preflight}
+            />
 
             {/* ── Case Information ─────────────────────────────────────── */}
             <Section title="Case Information">
