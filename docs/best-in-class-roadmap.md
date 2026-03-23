@@ -2,6 +2,8 @@
 
 This project is moving toward a high-trust means-test workflow, but it is **not** yet the best means-test tool in the world.
 
+For a fuller design brief covering product requirements, auditability, testing, and operational controls, see `docs/engineering-report.md`.
+
 ## Short answer
 
 No — not yet.

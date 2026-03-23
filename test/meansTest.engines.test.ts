@@ -7,6 +7,8 @@ import { buildAuditPacket, getAuditReviewStatus, getReviewerSignoffReasons, isRe
 import { runMeansTestFromBundle } from "../src/engine/v2/meansTestFromBundle";
 import type { MeansTestDatasetBundle } from "../src/datasets/types";
 import type { MeansTestInputV2 } from "../src/engine/v2/types";
+import { formatLookbackMonth, getMeansTestLookbackMonths } from "../src/lib/filingDate";
+import { getMeansTestPreflightAssessment, getStateMedianForHouseholdSize } from "../src/lib/preflight";
 
 function createLegacyInput(overrides: Partial<MeansTestInput> = {}): MeansTestInput {
   return {
@@ -256,6 +258,8 @@ test("bundle engine treats second-vehicle cap as incremental over first vehicle"
     ownershipLines.map((line) => line.amount),
     [0, 0]
   );
+  assert.equal(result.abuseThresholdLow, 9000);
+  assert.equal(result.abuseThresholdHigh, 15000);
 });
 
 
@@ -323,6 +327,62 @@ test("buildAuditPacket includes case summary, raw input, and resolved audit meta
   assert.equal(packet.caseSummary.county, "Orange");
   assert.equal(packet.input.state, "CA");
   assert.equal(packet.result.audit.datasets.housing.sourceHash?.startsWith("embedded-snapshot:"), true);
+});
+
+test("means-test filing-date helper returns the six full calendar months before filing", () => {
+  assert.deepEqual(
+    getMeansTestLookbackMonths("2026-03-23"),
+    ["2025-09", "2025-10", "2025-11", "2025-12", "2026-01", "2026-02"],
+  );
+  assert.equal(formatLookbackMonth("2026-02"), "Feb 2026");
+});
+
+test("preflight assessment computes state median and below/above median status", () => {
+  const bundle = createBundle();
+  assert.equal(getStateMedianForHouseholdSize(bundle, "CA", 2), 60000);
+  assert.equal(getStateMedianForHouseholdSize(bundle, "CA", 6), 100000);
+
+  const belowMedian = getMeansTestPreflightAssessment({
+    bundle,
+    supportedFilingDate: true,
+    state: "CA",
+    householdSize: 2,
+    totalCmi: 4000,
+    debtType: "consumer",
+  });
+  assert.equal(belowMedian.status, "below_median");
+  assert.equal(belowMedian.stateMedian, 60000);
+
+  const aboveMedian = getMeansTestPreflightAssessment({
+    bundle,
+    supportedFilingDate: true,
+    state: "CA",
+    householdSize: 2,
+    totalCmi: 7000,
+    debtType: "consumer",
+  });
+  assert.equal(aboveMedian.status, "above_median");
+  assert.equal(aboveMedian.deltaFromMedian, 24000);
+});
+
+test("preflight assessment handles business-debt and unsupported-date paths", () => {
+  const businessDebts = getMeansTestPreflightAssessment({
+    supportedFilingDate: true,
+    state: "CA",
+    householdSize: 2,
+    totalCmi: 5000,
+    debtType: "business",
+  });
+  assert.equal(businessDebts.status, "business_debts_exempt");
+
+  const unsupportedDate = getMeansTestPreflightAssessment({
+    supportedFilingDate: false,
+    state: "CA",
+    householdSize: 2,
+    totalCmi: 5000,
+    debtType: "consumer",
+  });
+  assert.equal(unsupportedDate.status, "unsupported_filing_date");
 });
 
 test("buildAuditPacket includes reviewer signoff metadata when provided", () => {

@@ -144,6 +144,8 @@ This repository can help produce a much safer means-test workflow, but no softwa
 
 If you want the concrete roadmap for turning this into a best-in-class means-test product, see `docs/best-in-class-roadmap.md`.
 
+For a fuller product and architecture brief, see `docs/engineering-report.md`.
+
 Current guardrails in this codebase:
 
 - Filing-date support is explicitly limited to cases filed on or after **April 1, 2026** because the embedded transportation dataset currently begins on that date even though other embedded datasets begin on November 1, 2025

@@ -95,6 +95,8 @@ export type MeansTestResultV2 =
       totalDeductions: number;
       monthlyDisposable: number;
       projected60Month: number;
+      abuseThresholdLow: number;
+      abuseThresholdHigh: number;
       threshold25Pct: number;
       presumptionOfAbuse: boolean;
       audit: CalculationAudit;

@@ -247,6 +247,8 @@ export function runMeansTestFromBundle(input: MeansTestInputV2, bundle: MeansTes
     totalDeductions,
     monthlyDisposable,
     projected60Month,
+    abuseThresholdLow: bundle.thresholds.abuse_threshold_low,
+    abuseThresholdHigh: bundle.thresholds.abuse_threshold_high,
     threshold25Pct,
     presumptionOfAbuse,
     audit: buildAudit(input, bundle, assumptions, warnings),
