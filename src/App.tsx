@@ -8,6 +8,8 @@ import { runMeansTestV2 } from "./engine/v2/meansTestV2";
 import type { DatasetVersionMeta, MeansTestResultV2 } from "./engine/v2/types";
 import { formatLookbackMonth, getMeansTestLookbackMonths } from "./lib/filingDate";
 import { getMeansTestPreflightAssessment } from "./lib/preflight";
+import { exportB122A2Draft } from "./forms/exportB122A2";
+import { canExportB122A2 } from "./forms/b122a2Eligibility";
 import "./index.css";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -459,6 +461,7 @@ function ResultView({
   const stateName = STATE_NAMES[input.state] ?? input.state;
   const [reviewerName, setReviewerName] = useState("");
   const [reviewerNotes, setReviewerNotes] = useState("");
+  const [exportError, setExportError] = useState<string | null>(null);
   const filingDateSupport = getEmbeddedDatasetSupport(input.filingDate);
   const datasetEntries = Object.entries(result.audit.datasets) as Array<[string, DatasetVersionMeta]>;
   const reviewerRequiredForExport = isReviewerSignoffRequired(result);
@@ -479,6 +482,17 @@ function ResultView({
         : undefined,
     ));
   };
+
+  const exportB122A2 = async () => {
+    setExportError(null);
+    try {
+      await exportB122A2Draft(input, result);
+    } catch (error) {
+      setExportError(error instanceof Error ? error.message : "Failed to generate the B122A-2 draft PDF.");
+    }
+  };
+
+  const showB122A2Export = canExportB122A2(result);
 
   if (result.outcome === "EXEMPT") {
     return (
@@ -508,6 +522,7 @@ function ResultView({
           onReviewerNotesChange={setReviewerNotes}
         />
         <AuditPanel result={result} />
+        <div className="result-note">B122A-2 draft PDF generation appears only for above-median outcomes.</div>
         <div className="result-actions">
           <button className="reset-btn" onClick={onReset}>← New Calculation</button>
           <button className="print-btn" onClick={exportAuditPacket} disabled={!reviewStatus.readyForExport} title={!reviewStatus.readyForExport ? reviewStatus.blockers.join(" ") : undefined}>Export Audit JSON</button>
@@ -568,6 +583,7 @@ function ResultView({
           onReviewerNotesChange={setReviewerNotes}
         />
         <AuditPanel result={result} />
+        <div className="result-note">B122A-2 draft PDF generation appears only for above-median outcomes.</div>
         <div className="result-actions">
           <button className="reset-btn" onClick={onReset}>← New Calculation</button>
           <button className="print-btn" onClick={exportAuditPacket} disabled={!reviewStatus.readyForExport} title={!reviewStatus.readyForExport ? reviewStatus.blockers.join(" ") : undefined}>Export Audit JSON</button>
@@ -711,8 +727,11 @@ function ResultView({
 
       <AuditPanel result={result} />
 
+      {exportError && <div className="result-note">B122A-2 draft export failed: {exportError}</div>}
+
       <div className="result-actions">
         <button className="reset-btn" onClick={onReset}>← New Calculation</button>
+        {showB122A2Export && <button className="print-btn" onClick={exportB122A2}>Generate B122A-2 Draft PDF</button>}
         <button className="print-btn" onClick={exportAuditPacket} disabled={!reviewStatus.readyForExport} title={!reviewStatus.readyForExport ? reviewStatus.blockers.join(" ") : undefined}>Export Audit JSON</button>
         <button className="print-btn" onClick={() => window.print()}>Print / PDF</button>
       </div>
