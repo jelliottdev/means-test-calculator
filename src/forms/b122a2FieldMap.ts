@@ -32,7 +32,6 @@ export const B122A2_TEXT_FIELD_MAP: TextFieldMapping[] = [
   { key: "line3_yes_3", pdfFieldName: "Quest3B1", required: true, value: () => 0 },
   { key: "line3_yes_4", pdfFieldName: "Quest3C", required: true, value: () => "" },
   { key: "line3", pdfFieldName: "Quest3C1", required: true, value: (p) => p.line3 },
-  { key: "line3_total", pdfFieldName: "Quest3", required: true, value: (p) => p.line3 },
   { key: "line4", pdfFieldName: "Quest4", required: true, value: (p) => p.line4 },
   { key: "line5", pdfFieldName: "Quest5", required: true, value: (p) => p.line5 },
   { key: "line6", pdfFieldName: "Quest6", required: true, value: (p) => p.line6 },
@@ -71,7 +70,6 @@ export const B122A2_TEXT_FIELD_MAP: TextFieldMapping[] = [
   { key: "line13e_monthly_2", pdfFieldName: "Quest13E.Monthly2", required: true, value: () => 0 },
   { key: "line13e_total", pdfFieldName: "Quest13E.TotalMonthly", required: true, value: (p) => p.line13e },
   { key: "line13f", pdfFieldName: "Quest13F", required: true, value: (p) => p.line13f },
-  { key: "line13f_copy", pdfFieldName: "undefined_80", required: true, value: (p) => p.line13f },
   { key: "line14", pdfFieldName: "Quest14", required: true, value: (p) => p.line14 },
   { key: "line15", pdfFieldName: "Quest15", required: true, value: (p) => p.line15 },
   { key: "line16", pdfFieldName: "undefined_48", required: true, value: (p) => p.line16 },
@@ -87,7 +85,6 @@ export const B122A2_TEXT_FIELD_MAP: TextFieldMapping[] = [
   { key: "line25b", pdfFieldName: "undefined_58", required: true, value: (p) => p.line25b },
   { key: "line25c", pdfFieldName: "1_2", required: true, value: (p) => p.line25c },
   { key: "line25", pdfFieldName: "undefined_59", required: true, value: (p) => p.line25 },
-  { key: "line25_copy", pdfFieldName: "2_2", required: true, value: (p) => p.line25 },
   { key: "line26", pdfFieldName: "undefined_61", required: true, value: (p) => p.line26 },
   { key: "line27", pdfFieldName: "undefined_62", required: true, value: (p) => p.line27 },
   { key: "line28", pdfFieldName: "undefined_63", required: true, value: (p) => p.line28 },
@@ -116,7 +113,6 @@ export const B122A2_TEXT_FIELD_MAP: TextFieldMapping[] = [
   { key: "line36", pdfFieldName: "undefined_97", required: true, value: (p) => p.line36 },
   { key: "line37_multiplier", pdfFieldName: "x", required: true, value: () => 1 },
   { key: "line37", pdfFieldName: "undefined_100", required: true, value: (p) => p.line37 },
-  { key: "line37_copy", pdfFieldName: "undefined_98", required: true, value: (p) => p.line37 },
   { key: "line38_part2", pdfFieldName: "undefined_101", required: true, value: (p) => p.line24 },
   { key: "line38_part3", pdfFieldName: "undefined_102", required: true, value: (p) => p.line32 },
   { key: "line38_part4", pdfFieldName: "undefined_103", required: true, value: (p) => p.line37 },
@@ -135,4 +131,17 @@ export const B122A2_TEXT_FIELD_MAP: TextFieldMapping[] = [
   { key: "line42_3_value", pdfFieldName: "undefined_120", required: true, value: () => 0 },
 ] as const;
 
-export const B122A2_CHECKBOX_MAP: CheckboxFieldMapping[] = [] as const;
+export const B122A2_CHECKBOX_MAP: CheckboxFieldMapping[] = [
+  {
+    key: "presumption_no",
+    pdfFieldName: "CheckBox1",
+    required: true,
+    value: (presumptionOfAbuse) => !presumptionOfAbuse,
+  },
+  {
+    key: "presumption_yes",
+    pdfFieldName: "CheckBox2",
+    required: true,
+    value: (presumptionOfAbuse) => presumptionOfAbuse,
+  },
+] as const;
