@@ -1,4 +1,4 @@
-import type { PDFCheckBox, PDFForm, PDFTextField } from "pdf-lib";
+import { TextAlignment, type PDFCheckBox, type PDFForm, type PDFTextField } from "pdf-lib";
 import type { FillValue, TextFieldMapping, CheckboxFieldMapping } from "./b122a2FieldMap";
 
 function formatFillValue(value: FillValue): string {
@@ -32,6 +32,7 @@ export function fillAcroFormText(
       assertFieldExists(fieldNames, mapping.pdfFieldName, mapping.key);
     }
     const field = form.getTextField(mapping.pdfFieldName) as PDFTextField;
+    field.setAlignment(TextAlignment.Left);
     field.setText(formatFillValue(resolveValue(mapping)));
     field.enableReadOnly();
   }

@@ -113,6 +113,7 @@ test("AcroForm fill fails closed when a required field is missing", () => {
   const form = {
     getFields: () => [{ getName: () => "Quest1" }],
     getTextField: (name: string) => ({
+      setAlignment: () => undefined,
       setText: (value: string) => writes.set(name, value),
       enableReadOnly: () => undefined,
     }),
@@ -132,6 +133,7 @@ test("AcroForm fill preserves integer fields without forced decimals", () => {
   const form = {
     getFields: () => [{ getName: () => "Quest5" }],
     getTextField: (name: string) => ({
+      setAlignment: () => undefined,
       setText: (value: string) => writes.set(name, value),
       enableReadOnly: () => undefined,
     }),
@@ -144,4 +146,12 @@ test("AcroForm fill preserves integer fields without forced decimals", () => {
   );
 
   assert.equal(writes.get("Quest5"), "3");
+});
+
+
+test("field map includes known total-copy fields", () => {
+  const byKey = new Set(B122A2_TEXT_FIELD_MAP.map((item) => item.key));
+  assert.equal(byKey.has("line3_total"), true);
+  assert.equal(byKey.has("line25_copy"), true);
+  assert.equal(byKey.has("line37_copy"), true);
 });
