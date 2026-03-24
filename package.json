@@ -8,7 +8,7 @@
     "build": "tsc -p tsconfig.app.json && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test": "npx tsx --test test/artifacts.test.ts test/florida.coverage.test.ts test/meansTest.engines.test.ts",
+    "test": "npx tsx --test test/artifacts.test.ts test/florida.coverage.test.ts test/meansTest.engines.test.ts test/b122a2.export.test.ts",
     "generate:artifacts": "npx tsx scripts/generate-artifacts.ts",
     "validate:artifacts": "npx tsx scripts/validate-artifacts.ts",
     "check:publication": "npx tsx scripts/check-publication-readiness.ts",
@@ -16,6 +16,7 @@
     "check-data": "npx tsx scripts/fetch-data.ts --check"
   },
   "dependencies": {
+    "pdf-lib": "^1.17.1",
     "react": "^19.2.4",
     "react-dom": "^19.2.4"
   },
