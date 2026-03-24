@@ -1,0 +1,151 @@
+import type { B122A2Projection } from "./b122a2Projection";
+
+export type FillValue = string | number | boolean;
+export type ProjectionResolver = (projection: B122A2Projection) => FillValue;
+
+export interface TextFieldMapping {
+  key: string;
+  pdfFieldName: string;
+  required: boolean;
+  value: ProjectionResolver;
+}
+
+export interface CheckboxFieldMapping {
+  key: string;
+  pdfFieldName: string;
+  required: boolean;
+  value: (presumptionOfAbuse: boolean) => boolean;
+}
+
+export const B122A2_SIGNATURE_FIELDS = [
+  "Debtor1.sig",
+  "Debtor1.Date signed",
+  "Debtor2.sig",
+  "Debtor2.Date signed",
+] as const;
+
+export const B122A2_TEXT_FIELD_MAP: TextFieldMapping[] = [
+  { key: "line1", pdfFieldName: "Quest1", required: true, value: (p) => p.line1 },
+  { key: "line3_no", pdfFieldName: "Quest3A", required: true, value: () => "" },
+  { key: "line3_yes_1", pdfFieldName: "Quest3A1", required: true, value: () => 0 },
+  { key: "line3_yes_2", pdfFieldName: "Quest3B", required: true, value: () => "" },
+  { key: "line3_yes_3", pdfFieldName: "Quest3B1", required: true, value: () => 0 },
+  { key: "line3_yes_4", pdfFieldName: "Quest3C", required: true, value: () => "" },
+  { key: "line3", pdfFieldName: "Quest3C1", required: true, value: (p) => p.line3 },
+  { key: "line3_total", pdfFieldName: "Quest3", required: true, value: (p) => p.line3 },
+  { key: "line4", pdfFieldName: "Quest4", required: true, value: (p) => p.line4 },
+  { key: "line5", pdfFieldName: "Quest5", required: true, value: (p) => p.line5 },
+  { key: "line6", pdfFieldName: "Quest6", required: true, value: (p) => p.line6 },
+  { key: "line7a", pdfFieldName: "Quest7A", required: true, value: (p) => p.line7a },
+  { key: "line7b", pdfFieldName: "Quest7B", required: true, value: (p) => p.line7b },
+  { key: "line7c", pdfFieldName: "Quest7C", required: true, value: (p) => p.line7c },
+  { key: "line7d", pdfFieldName: "Quest7D", required: true, value: (p) => p.line7d },
+  { key: "line7e", pdfFieldName: "Quest7E", required: true, value: (p) => p.line7e },
+  { key: "line7f", pdfFieldName: "Quest7F", required: true, value: (p) => p.line7f },
+  { key: "line7g", pdfFieldName: "Quest7G", required: true, value: (p) => p.line7g },
+  { key: "line8", pdfFieldName: "Quest8", required: true, value: (p) => p.line8 },
+  { key: "line9a", pdfFieldName: "Quest9", required: true, value: (p) => p.line9a },
+  { key: "line9b_1_name", pdfFieldName: "Quest9B creditor name1", required: true, value: () => "" },
+  { key: "line9b_1_amt", pdfFieldName: "Quest9B creditor amount1", required: true, value: (p) => p.line9b },
+  { key: "line9b_2_name", pdfFieldName: "Quest9B creditor name2", required: true, value: () => "" },
+  { key: "line9b_2_amt", pdfFieldName: "Quest9B creditor amount2", required: true, value: () => 0 },
+  { key: "line9b_3_name", pdfFieldName: "Quest9B creditor name3", required: true, value: () => "" },
+  { key: "line9b_3_amt", pdfFieldName: "Quest9B creditor amount3", required: true, value: () => 0 },
+  { key: "line9b_total", pdfFieldName: "Quest9B total amount", required: true, value: (p) => p.line9b },
+  { key: "line9c", pdfFieldName: "Quest9C", required: true, value: (p) => p.line9c },
+  { key: "line10", pdfFieldName: "Quest10", required: true, value: (p) => p.line10 },
+  { key: "line10_explain_1", pdfFieldName: "Explain 1", required: true, value: () => "" },
+  { key: "line10_explain_2", pdfFieldName: "Explain 2", required: true, value: () => "" },
+  { key: "line12", pdfFieldName: "Quest12", required: true, value: (p) => p.line12 },
+  { key: "line13a", pdfFieldName: "Quest13A", required: true, value: (p) => p.line13a },
+  { key: "line13b_v1_creditor_1", pdfFieldName: "Quest13B Creditor for vehicle 1-1", required: true, value: () => "" },
+  { key: "line13b_v1_amount_1", pdfFieldName: "Quest13B amount for vehicle 1-1", required: true, value: (p) => p.line13b },
+  { key: "line13b_v1_creditor_2", pdfFieldName: "Quest13B Creditor for vehicle 1-2", required: true, value: () => "" },
+  { key: "line13b_v1_amount_2", pdfFieldName: "Quest13B amount for vehicle 1-2", required: true, value: () => 0 },
+  { key: "line13b_total", pdfFieldName: "Quest13B Total amount for vehicle 1", required: true, value: (p) => p.line13b },
+  { key: "line13c", pdfFieldName: "Quest13C", required: true, value: (p) => p.line13c },
+  { key: "line13d", pdfFieldName: "Quest13D", required: true, value: (p) => p.line13d },
+  { key: "line13e_creditor_1", pdfFieldName: "Quest13E.Creditor1", required: true, value: () => "" },
+  { key: "line13e_monthly_1", pdfFieldName: "Quest13E.Monthly1", required: true, value: (p) => p.line13e },
+  { key: "line13e_creditor_2", pdfFieldName: "Quest13E.Creditor2", required: true, value: () => "" },
+  { key: "line13e_monthly_2", pdfFieldName: "Quest13E.Monthly2", required: true, value: () => 0 },
+  { key: "line13e_total", pdfFieldName: "Quest13E.TotalMonthly", required: true, value: (p) => p.line13e },
+  { key: "line13f", pdfFieldName: "Quest13F", required: true, value: (p) => p.line13f },
+  { key: "line13f_copy", pdfFieldName: "undefined_80", required: true, value: (p) => p.line13f },
+  { key: "line14", pdfFieldName: "Quest14", required: true, value: (p) => p.line14 },
+  { key: "line15", pdfFieldName: "Quest15", required: true, value: (p) => p.line15 },
+  { key: "line16", pdfFieldName: "undefined_48", required: true, value: (p) => p.line16 },
+  { key: "line17", pdfFieldName: "undefined_49", required: true, value: (p) => p.line17 },
+  { key: "line18", pdfFieldName: "undefined_50", required: true, value: (p) => p.line18 },
+  { key: "line19", pdfFieldName: "undefined_51", required: true, value: (p) => p.line19 },
+  { key: "line20", pdfFieldName: "undefined_52", required: true, value: (p) => p.line20 },
+  { key: "line21", pdfFieldName: "undefined_53", required: true, value: (p) => p.line21 },
+  { key: "line22", pdfFieldName: "undefined_54", required: true, value: (p) => p.line22 },
+  { key: "line23", pdfFieldName: "undefined_55", required: true, value: (p) => p.line23 },
+  { key: "line24", pdfFieldName: "undefined_56", required: true, value: (p) => p.line24 },
+  { key: "line25a", pdfFieldName: "undefined_57", required: true, value: (p) => p.line25a },
+  { key: "line25b", pdfFieldName: "undefined_58", required: true, value: (p) => p.line25b },
+  { key: "line25c", pdfFieldName: "1_2", required: true, value: (p) => p.line25c },
+  { key: "line25", pdfFieldName: "undefined_59", required: true, value: (p) => p.line25 },
+  { key: "line25_copy", pdfFieldName: "2_2", required: true, value: (p) => p.line25 },
+  { key: "line26", pdfFieldName: "undefined_61", required: true, value: (p) => p.line26 },
+  { key: "line27", pdfFieldName: "undefined_62", required: true, value: (p) => p.line27 },
+  { key: "line28", pdfFieldName: "undefined_63", required: true, value: (p) => p.line28 },
+  { key: "line29", pdfFieldName: "undefined_64", required: true, value: (p) => p.line29 },
+  { key: "line30", pdfFieldName: "undefined_65", required: true, value: (p) => p.line30 },
+  { key: "line31", pdfFieldName: "undefined_66", required: true, value: (p) => p.line31 },
+  { key: "line32", pdfFieldName: "undefined_67", required: true, value: (p) => p.line32 },
+  { key: "line33a", pdfFieldName: "undefined_71", required: true, value: (p) => p.line33a },
+  { key: "line33b", pdfFieldName: "undefined_74", required: true, value: (p) => p.line33b },
+  { key: "line33c", pdfFieldName: "undefined_77", required: true, value: (p) => p.line33c },
+  { key: "line33d_label", pdfFieldName: "undefined_81", required: true, value: (p) => (p.line33d > 0 ? "Other secured debt" : "") },
+  { key: "line33d_collateral", pdfFieldName: "secures the debt", required: true, value: (p) => (p.line33d > 0 ? "Other collateral" : "") },
+  { key: "line33d_60m", pdfFieldName: "undefined_82", required: true, value: (p) => p.line33d * 60 },
+  { key: "line33d", pdfFieldName: "undefined_83", required: true, value: (p) => p.line33d },
+  { key: "line33d_row2_name", pdfFieldName: "undefined_84", required: true, value: () => "" },
+  { key: "line33d_row2_desc", pdfFieldName: "undefined_85", required: true, value: () => "" },
+  { key: "line33d_row2_60m", pdfFieldName: "undefined_86", required: true, value: () => 0 },
+  { key: "line33d_row2_monthly", pdfFieldName: "undefined_87", required: true, value: () => 0 },
+  { key: "line33d_row3_name", pdfFieldName: "undefined_88", required: true, value: () => "" },
+  { key: "line33d_row3_desc", pdfFieldName: "undefined_89", required: true, value: () => "" },
+  { key: "line33d_row3_60m", pdfFieldName: "undefined_90", required: true, value: () => 0 },
+  { key: "line33d_row3_monthly", pdfFieldName: "undefined_91", required: true, value: () => 0 },
+  { key: "line33e", pdfFieldName: "undefined_92", required: true, value: (p) => p.line33e },
+  { key: "line34", pdfFieldName: "undefined_93", required: true, value: (p) => p.line34 },
+  { key: "line35", pdfFieldName: "undefined_93-1", required: true, value: (p) => p.line35 },
+  { key: "line36", pdfFieldName: "undefined_97", required: true, value: (p) => p.line36 },
+  { key: "line37_multiplier", pdfFieldName: "x", required: true, value: () => 1 },
+  { key: "line37", pdfFieldName: "undefined_100", required: true, value: (p) => p.line37 },
+  { key: "line37_copy", pdfFieldName: "undefined_98", required: true, value: (p) => p.line37 },
+  { key: "line38_part2", pdfFieldName: "undefined_101", required: true, value: (p) => p.line24 },
+  { key: "line38_part3", pdfFieldName: "undefined_102", required: true, value: (p) => p.line32 },
+  { key: "line38_part4", pdfFieldName: "undefined_103", required: true, value: (p) => p.line37 },
+  { key: "line38", pdfFieldName: "undefined_110", required: true, value: (p) => p.line38 },
+  { key: "line39a", pdfFieldName: "undefined_107", required: true, value: (p) => p.line39a },
+  { key: "line39b", pdfFieldName: "undefined_108", required: true, value: (p) => p.line39b },
+  { key: "line39c", pdfFieldName: "undefined_111", required: true, value: (p) => p.line39c },
+  { key: "line39d", pdfFieldName: "undefined_104", required: true, value: (p) => p.line39d },
+  { key: "line41a", pdfFieldName: "undefined_113", required: true, value: (p) => p.line41a },
+  { key: "line41b", pdfFieldName: "undefined_114", required: true, value: (p) => p.line41b },
+  { key: "line42_1_label", pdfFieldName: "undefined_115", required: true, value: () => "" },
+  { key: "line42_1_value", pdfFieldName: "undefined_116", required: true, value: () => 0 },
+  { key: "line42_2_label", pdfFieldName: "undefined_117", required: true, value: () => "" },
+  { key: "line42_2_value", pdfFieldName: "undefined_118", required: true, value: () => 0 },
+  { key: "line42_3_label", pdfFieldName: "undefined_119", required: true, value: () => "" },
+  { key: "line42_3_value", pdfFieldName: "undefined_120", required: true, value: () => 0 },
+] as const;
+
+export const B122A2_CHECKBOX_MAP: CheckboxFieldMapping[] = [
+  {
+    key: "presumption_no",
+    pdfFieldName: "CheckBox1",
+    required: true,
+    value: (presumptionOfAbuse) => !presumptionOfAbuse,
+  },
+  {
+    key: "presumption_yes",
+    pdfFieldName: "CheckBox2",
+    required: true,
+    value: (presumptionOfAbuse) => presumptionOfAbuse,
+  },
+] as const;

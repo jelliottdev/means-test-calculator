@@ -8,6 +8,8 @@ import { runMeansTestV2 } from "./engine/v2/meansTestV2";
 import type { DatasetVersionMeta, MeansTestResultV2 } from "./engine/v2/types";
 import { formatLookbackMonth, getMeansTestLookbackMonths } from "./lib/filingDate";
 import { getMeansTestPreflightAssessment } from "./lib/preflight";
+import { exportB122A2Draft } from "./forms/exportB122A2";
+import { canExportB122A2 } from "./forms/b122a2Eligibility";
 import "./index.css";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -459,6 +461,17 @@ function ResultView({
   const stateName = STATE_NAMES[input.state] ?? input.state;
   const [reviewerName, setReviewerName] = useState("");
   const [reviewerNotes, setReviewerNotes] = useState("");
+  const [exportError, setExportError] = useState<string | null>(null);
+  const [debtor1Name, setDebtor1Name] = useState("");
+  const [debtor2Name, setDebtor2Name] = useState("");
+  const [caseNumber, setCaseNumber] = useState("");
+  const [bankruptcyDistrict, setBankruptcyDistrict] = useState("");
+  const [mortgageCreditor1, setMortgageCreditor1] = useState("");
+  const [vehicle1Creditor1, setVehicle1Creditor1] = useState("");
+  const [vehicle2Creditor1, setVehicle2Creditor1] = useState("");
+  const [otherSecuredDebtCreditor, setOtherSecuredDebtCreditor] = useState("");
+  const [otherSecuredDebtCollateral, setOtherSecuredDebtCollateral] = useState("");
+  const [amendedFiling, setAmendedFiling] = useState(false);
   const filingDateSupport = getEmbeddedDatasetSupport(input.filingDate);
   const datasetEntries = Object.entries(result.audit.datasets) as Array<[string, DatasetVersionMeta]>;
   const reviewerRequiredForExport = isReviewerSignoffRequired(result);
@@ -479,6 +492,28 @@ function ResultView({
         : undefined,
     ));
   };
+
+  const exportB122A2 = async () => {
+    setExportError(null);
+    try {
+      await exportB122A2Draft(input, result, {
+        debtor1Name,
+        debtor2Name,
+        caseNumber,
+        bankruptcyDistrict,
+        amendedFiling,
+        mortgageCreditor1,
+        vehicle1Creditor1,
+        vehicle2Creditor1,
+        otherSecuredDebtCreditor,
+        otherSecuredDebtCollateral,
+      });
+    } catch (error) {
+      setExportError(error instanceof Error ? error.message : "Failed to generate the B122A-2 draft PDF.");
+    }
+  };
+
+  const showB122A2Export = canExportB122A2(result);
 
   if (result.outcome === "EXEMPT") {
     return (
@@ -508,6 +543,7 @@ function ResultView({
           onReviewerNotesChange={setReviewerNotes}
         />
         <AuditPanel result={result} />
+        <div className="result-note">B122A-2 draft PDF generation appears only for above-median outcomes.</div>
         <div className="result-actions">
           <button className="reset-btn" onClick={onReset}>← New Calculation</button>
           <button className="print-btn" onClick={exportAuditPacket} disabled={!reviewStatus.readyForExport} title={!reviewStatus.readyForExport ? reviewStatus.blockers.join(" ") : undefined}>Export Audit JSON</button>
@@ -568,6 +604,7 @@ function ResultView({
           onReviewerNotesChange={setReviewerNotes}
         />
         <AuditPanel result={result} />
+        <div className="result-note">B122A-2 draft PDF generation appears only for above-median outcomes.</div>
         <div className="result-actions">
           <button className="reset-btn" onClick={onReset}>← New Calculation</button>
           <button className="print-btn" onClick={exportAuditPacket} disabled={!reviewStatus.readyForExport} title={!reviewStatus.readyForExport ? reviewStatus.blockers.join(" ") : undefined}>Export Audit JSON</button>
@@ -711,8 +748,26 @@ function ResultView({
 
       <AuditPanel result={result} />
 
+      <Section title="Draft PDF Enrichment (optional)">
+        <div className="grid two-col">
+          <Field label="Debtor 1 Name"><input type="text" className="text-input" value={debtor1Name} onChange={e => setDebtor1Name(e.target.value)} placeholder="Jane Debtor" /></Field>
+          <Field label="Debtor 2 Name"><input type="text" className="text-input" value={debtor2Name} onChange={e => setDebtor2Name(e.target.value)} placeholder="John Debtor" /></Field>
+          <Field label="Case Number"><input type="text" className="text-input" value={caseNumber} onChange={e => setCaseNumber(e.target.value)} placeholder="Optional" /></Field>
+          <Field label="Bankruptcy District"><input type="text" className="text-input" value={bankruptcyDistrict} onChange={e => setBankruptcyDistrict(e.target.value)} placeholder="e.g., Southern District of Florida" /></Field>
+          <Field label="Mortgage Creditor (line 9b)"><input type="text" className="text-input" value={mortgageCreditor1} onChange={e => setMortgageCreditor1(e.target.value)} placeholder="Optional" /></Field>
+          <Field label="Vehicle 1 Creditor (line 13b)"><input type="text" className="text-input" value={vehicle1Creditor1} onChange={e => setVehicle1Creditor1(e.target.value)} placeholder="Optional" /></Field>
+          <Field label="Vehicle 2 Creditor (line 13e)"><input type="text" className="text-input" value={vehicle2Creditor1} onChange={e => setVehicle2Creditor1(e.target.value)} placeholder="Optional" /></Field>
+          <Field label="Other Secured Debt Creditor (line 33d)"><input type="text" className="text-input" value={otherSecuredDebtCreditor} onChange={e => setOtherSecuredDebtCreditor(e.target.value)} placeholder="Optional" /></Field>
+          <Field label="Collateral Description (line 33d)"><input type="text" className="text-input" value={otherSecuredDebtCollateral} onChange={e => setOtherSecuredDebtCollateral(e.target.value)} placeholder="Optional" /></Field>
+          <Field label="Amended Filing"><label><input type="checkbox" checked={amendedFiling} onChange={e => setAmendedFiling(e.target.checked)} /> Mark as amended filing</label></Field>
+        </div>
+      </Section>
+
+      {exportError && <div className="result-note">B122A-2 draft export failed: {exportError}</div>}
+
       <div className="result-actions">
         <button className="reset-btn" onClick={onReset}>← New Calculation</button>
+        {showB122A2Export && <button className="print-btn" onClick={exportB122A2}>Generate B122A-2 Draft PDF</button>}
         <button className="print-btn" onClick={exportAuditPacket} disabled={!reviewStatus.readyForExport} title={!reviewStatus.readyForExport ? reviewStatus.blockers.join(" ") : undefined}>Export Audit JSON</button>
         <button className="print-btn" onClick={() => window.print()}>Print / PDF</button>
       </div>
