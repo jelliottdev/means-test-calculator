@@ -125,3 +125,23 @@ test("AcroForm fill fails closed when a required field is missing", () => {
     /required field 'Quest3A'/,
   );
 });
+
+
+test("AcroForm fill preserves integer fields without forced decimals", () => {
+  const writes = new Map<string, string>();
+  const form = {
+    getFields: () => [{ getName: () => "Quest5" }],
+    getTextField: (name: string) => ({
+      setText: (value: string) => writes.set(name, value),
+      enableReadOnly: () => undefined,
+    }),
+  };
+
+  fillAcroFormText(
+    form as never,
+    [{ key: "line5", pdfFieldName: "Quest5", required: true, value: () => 3 }],
+    (mapping) => mapping.value({} as never),
+  );
+
+  assert.equal(writes.get("Quest5"), "3");
+});

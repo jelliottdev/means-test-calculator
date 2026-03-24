@@ -522,6 +522,7 @@ function ResultView({
           onReviewerNotesChange={setReviewerNotes}
         />
         <AuditPanel result={result} />
+        <div className="result-note">B122A-2 draft PDF generation appears only for above-median outcomes.</div>
         <div className="result-actions">
           <button className="reset-btn" onClick={onReset}>← New Calculation</button>
           <button className="print-btn" onClick={exportAuditPacket} disabled={!reviewStatus.readyForExport} title={!reviewStatus.readyForExport ? reviewStatus.blockers.join(" ") : undefined}>Export Audit JSON</button>
@@ -582,6 +583,7 @@ function ResultView({
           onReviewerNotesChange={setReviewerNotes}
         />
         <AuditPanel result={result} />
+        <div className="result-note">B122A-2 draft PDF generation appears only for above-median outcomes.</div>
         <div className="result-actions">
           <button className="reset-btn" onClick={onReset}>← New Calculation</button>
           <button className="print-btn" onClick={exportAuditPacket} disabled={!reviewStatus.readyForExport} title={!reviewStatus.readyForExport ? reviewStatus.blockers.join(" ") : undefined}>Export Audit JSON</button>

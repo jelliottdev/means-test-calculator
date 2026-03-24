@@ -3,7 +3,9 @@ import type { FillValue, TextFieldMapping, CheckboxFieldMapping } from "./b122a2
 
 function formatFillValue(value: FillValue): string {
   if (typeof value === "number") {
-    return Number.isFinite(value) ? value.toFixed(2) : "0.00";
+    if (!Number.isFinite(value)) return "0";
+    if (Number.isInteger(value)) return String(value);
+    return value.toFixed(2);
   }
   if (typeof value === "boolean") return value ? "Yes" : "No";
   return value;
