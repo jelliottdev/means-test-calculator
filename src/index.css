@@ -505,6 +505,13 @@ body {
 }
 .calc-btn:hover:not(:disabled) { background: #0f2540; }
 .calc-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.form-footer-actions { display: flex; gap: 0.75rem; align-items: center; }
+.demo-btn {
+  background: transparent; color: var(--accent); border: 1.5px solid var(--accent);
+  padding: 0.85rem 2rem; border-radius: 4px; font-family: var(--sans);
+  font-size: 1rem; font-weight: 500; cursor: pointer; transition: all 0.15s;
+}
+.demo-btn:hover { background: var(--accent); color: white; }
 
 /* ── Results ─────────────────────────────────────────────────────────────── */
 .result-wrap { display: flex; flex-direction: column; gap: 1.5rem; }

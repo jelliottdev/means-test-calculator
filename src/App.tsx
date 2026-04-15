@@ -66,6 +66,48 @@ const DEFAULT_INPUT: MeansTestInput = {
   isActiveReservist: false,
 };
 
+// ── Demo Data ────────────────────────────────────────────────────────────────
+// Realistic above-median scenario: California household of 3 with multiple
+// income sources, triggering the full Form 122A-2 deduction analysis.
+
+const DEMO_INPUT: MeansTestInput = {
+  filingDate: MIN_SUPPORTED_FILING_DATE,
+  state: "CA",
+  county: "Los Angeles",
+  householdSize: 3,
+  isJointFiling: true,
+  incomeSources: [
+    { type: "Wages/Salary", monthlyAmount: 5500 },
+    { type: "Self-Employment", monthlyAmount: 2800 },
+    { type: "Rental Income", monthlyAmount: 1500 },
+  ],
+  primaryOver65: false,
+  spouseOver65: false,
+  numVehicles: 2,
+  hasCarPayment: true,
+  monthlyCarPayment: 485,
+  hasSecondCarPayment: true,
+  monthlySecondCarPayment: 325,
+  monthlyMortgageRent: 2150,
+  monthlyTaxes: 1350,
+  monthlyInvoluntaryDeductions: 175,
+  monthlyTermLifeInsurance: 65,
+  monthlyEducationEmployment: 0,
+  monthlyTelecom: 50,
+  monthlyHealthInsurance: 420,
+  monthlyChildcare: 800,
+  monthlyChronicHealthcare: 125,
+  monthlyDependentChildEducation: 250,
+  monthlySpecialDietFood: 0,
+  monthlySupportObligations: 0,
+  monthlyPriorityDebts: 0,
+  monthlyOtherSecuredDebt: 0,
+  totalUnsecuredDebt: 42000,
+  debtType: "consumer",
+  isDisabledVeteran: false,
+  isActiveReservist: false,
+};
+
 // ── UI Components ─────────────────────────────────────────────────────────────
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -876,6 +918,13 @@ export default function App() {
     sessionStorage.removeItem(SESSION_KEY);
   };
 
+  const loadDemo = () => {
+    setInput(DEMO_INPUT);
+    setResult(null);
+    setErrors({});
+    setReviewAcknowledged(false);
+  };
+
   const totalCMI = input.incomeSources.reduce((s, src) => s + src.monthlyAmount, 0);
   const preflight = getMeansTestPreflightAssessment({
     bundle: embeddedBundle,
@@ -1373,9 +1422,14 @@ export default function App() {
               <span className="form-footer-note">
                 Housing / median / thresholds effective: {EFFECTIVE_DATE} · Transportation effective: 2026-04-01 · Supported filing dates: {MIN_SUPPORTED_FILING_DATE} and later
               </span>
-              <button type="submit" className="calc-btn" disabled={!input.state}>
-                Run Means Test →
-              </button>
+              <div className="form-footer-actions">
+                <button type="button" className="demo-btn" onClick={loadDemo} data-testid="demo-btn">
+                  Load Demo Data
+                </button>
+                <button type="submit" className="calc-btn" disabled={!input.state}>
+                  Run Means Test →
+                </button>
+              </div>
             </div>
           </form>
         )}
