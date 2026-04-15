@@ -896,6 +896,10 @@ export default function App() {
     }
     if (Object.keys(errs).length > 0) {
       setErrors(errs);
+      requestAnimationFrame(() => {
+        document.querySelector('.field-error')?.closest('.field')
+          ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
       return false;
     }
     return true;
@@ -1252,7 +1256,7 @@ export default function App() {
                 IRS standards apply where noted.
               </p>
 
-              <h4 style={{ fontFamily: "var(--mono)", fontSize: "0.72rem", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--ink-3)", margin: "0.5rem 0 0.25rem" }}>
+              <h4 className="subsection-label">
                 Housing (Lines 8a / 8b)
               </h4>
               <div className="grid-2">
@@ -1268,7 +1272,7 @@ export default function App() {
                 </Field>
               </div>
 
-              <h4 style={{ fontFamily: "var(--mono)", fontSize: "0.72rem", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--ink-3)", margin: "0.75rem 0 0.25rem" }}>
+              <h4 className="subsection-label">
                 Taxes &amp; Payroll (Lines 16–17)
               </h4>
               <div className="grid-2">
@@ -1286,7 +1290,7 @@ export default function App() {
                 </Field>
               </div>
 
-              <h4 style={{ fontFamily: "var(--mono)", fontSize: "0.72rem", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--ink-3)", margin: "0.75rem 0 0.25rem" }}>
+              <h4 className="subsection-label">
                 Insurance &amp; Benefits (Lines 18, 22–23, 25)
               </h4>
               <div className="grid-2">
@@ -1310,7 +1314,7 @@ export default function App() {
                 </Field>
               </div>
 
-              <h4 style={{ fontFamily: "var(--mono)", fontSize: "0.72rem", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--ink-3)", margin: "0.75rem 0 0.25rem" }}>
+              <h4 className="subsection-label">
                 Court Orders, Education &amp; Care (Lines 19–21)
               </h4>
               <div className="grid-2">
@@ -1328,7 +1332,7 @@ export default function App() {
                 </Field>
               </div>
 
-              <h4 style={{ fontFamily: "var(--mono)", fontSize: "0.72rem", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--ink-3)", margin: "0.75rem 0 0.25rem" }}>
+              <h4 className="subsection-label">
                 Childcare & Special Circumstances (Lines 21–22, 29–30)
               </h4>
               <div className="grid-2">
@@ -1370,7 +1374,7 @@ export default function App() {
                 </Field>
               </div>
 
-              <h4 style={{ fontFamily: "var(--mono)", fontSize: "0.72rem", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--ink-3)", margin: "0.75rem 0 0.25rem" }}>
+              <h4 className="subsection-label">
                 Priority Claims & Chapter 13 Admin (Lines 35–36)
               </h4>
               <div className="grid-2">
@@ -1385,7 +1389,7 @@ export default function App() {
                 </Field>
               </div>
 
-              <h4 style={{ fontFamily: "var(--mono)", fontSize: "0.72rem", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--ink-3)", margin: "0.75rem 0 0.25rem" }}>
+              <h4 className="subsection-label">
                 Secured Debt (Line 33)
               </h4>
               <div className="grid-2">
