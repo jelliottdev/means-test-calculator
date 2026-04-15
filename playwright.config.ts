@@ -5,10 +5,10 @@ export default defineConfig({
   timeout: 120_000,
   use: {
     headless: true,
-    viewport: { width: 1280, height: 800 },
+    viewport: { width: 1440, height: 900 },
     video: {
       mode: "on",
-      size: { width: 1280, height: 800 },
+      size: { width: 1440, height: 900 },
     },
     launchOptions: {
       args: ["--no-sandbox", "--disable-setuid-sandbox"],

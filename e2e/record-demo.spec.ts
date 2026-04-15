@@ -23,68 +23,74 @@ async function smoothScrollTo(page: import("@playwright/test").Page, selector: s
 }
 
 test("record demo walkthrough", async ({ page }) => {
-  // ── 1. Navigate to the app ──────────────────────────────────────────────
+  // ── 1. Navigate — show the empty form and workspace overview ───────────
   await page.goto(BASE_URL, { waitUntil: "networkidle" });
-  await page.waitForTimeout(1500);
+  await page.waitForTimeout(2000);
 
-  // ── 2. Click the demo button to load pre-filled data ────────────────────
-  const demoBtn = page.getByTestId("demo-btn");
+  // ── 2. Scroll to the demo button at the bottom of the form ─────────────
   await smoothScrollTo(page, '[data-testid="demo-btn"]');
-  await page.waitForTimeout(500);
-  await demoBtn.click();
   await page.waitForTimeout(1000);
 
-  // ── 3. Scroll through the filled-in form so the viewer can see the data ─
+  // ── 3. Click the demo button to load pre-filled data ───────────────────
+  const demoBtn = page.getByTestId("demo-btn");
+  await demoBtn.click();
+  await page.waitForTimeout(1500);
+
+  // ── 4. Scroll back to top to show filled overview/preflight ────────────
+  await page.evaluate(() => window.scrollTo({ top: 0, behavior: "smooth" }));
+  await page.waitForTimeout(2000);
+
+  // ── 5. Scroll through each section with pauses ─────────────────────────
   // Case Information
   await smoothScrollTo(page, ".section:nth-of-type(1)");
-  await page.waitForTimeout(1200);
+  await page.waitForTimeout(1500);
 
   // Income section
   await smoothScrollTo(page, ".section:nth-of-type(2)");
-  await page.waitForTimeout(1200);
+  await page.waitForTimeout(1500);
 
   // Transportation section
   await smoothScrollTo(page, ".section:nth-of-type(3)");
-  await page.waitForTimeout(1200);
+  await page.waitForTimeout(1500);
 
   // Expense Deductions section
   await smoothScrollTo(page, ".section:nth-of-type(4)");
-  await page.waitForTimeout(1200);
+  await page.waitForTimeout(1500);
 
   // Debt Summary section
   await smoothScrollTo(page, ".section:nth-of-type(5)");
-  await page.waitForTimeout(1200);
-
-  // Scroll to the Run Means Test button
-  await smoothScrollTo(page, ".calc-btn");
-  await page.waitForTimeout(800);
-
-  // ── 4. Click "Run Means Test" ───────────────────────────────────────────
-  await page.click(".calc-btn");
   await page.waitForTimeout(1500);
 
-  // ── 5. Scroll through the results ───────────────────────────────────────
+  // ── 6. Scroll to the Run Means Test button ─────────────────────────────
+  await smoothScrollTo(page, ".calc-btn");
+  await page.waitForTimeout(1000);
+
+  // ── 7. Click "Run Means Test" ──────────────────────────────────────────
+  await page.click(".calc-btn");
+  await page.waitForTimeout(2000);
+
+  // ── 8. Scroll through the results ──────────────────────────────────────
   // Verdict
   await smoothScrollTo(page, ".verdict");
-  await page.waitForTimeout(1500);
+  await page.waitForTimeout(2000);
 
   // Stats grid
   await smoothScrollTo(page, ".result-grid");
-  await page.waitForTimeout(1500);
+  await page.waitForTimeout(2000);
 
   // Deductions table
   await smoothScrollTo(page, ".deductions-table");
-  await page.waitForTimeout(1500);
+  await page.waitForTimeout(2000);
 
   // Threshold analysis
   await smoothScrollTo(page, ".threshold-analysis");
-  await page.waitForTimeout(1500);
+  await page.waitForTimeout(2000);
 
   // Audit panel
   await smoothScrollTo(page, ".audit-panel");
-  await page.waitForTimeout(1500);
+  await page.waitForTimeout(2000);
 
-  // Scroll back to top for a final look
-  await page.evaluate(() => window.scrollTo({ top: 0, behavior: "smooth" }));
+  // ── 9. Scroll back to verdict for a final look ─────────────────────────
+  await smoothScrollTo(page, ".verdict");
   await page.waitForTimeout(2000);
 });
